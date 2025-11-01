@@ -46,8 +46,11 @@ export default function AdminRolesPage() {
         .single();
       const admin = prof?.role === "admin";
       setIsAdmin(admin);
-      if (admin) load();
-      else setLoading(false);
+      if (admin) {
+        await load();
+      } else {
+        setLoading(false);
+      }
     });
   }, [supabase]);
 
