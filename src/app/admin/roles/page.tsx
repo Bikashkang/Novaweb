@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type Profile = {
@@ -18,7 +18,7 @@ export default function AdminRolesPage() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     const { data, error } = await supabase
@@ -28,7 +28,7 @@ export default function AdminRolesPage() {
     if (error) setError(error.message);
     setRows((data as Profile[]) ?? []);
     setLoading(false);
-  }
+  }, [supabase]);
 
   useEffect(() => {
     // Check current user's role explicitly to avoid single() failing when admin can read all rows
@@ -52,7 +52,7 @@ export default function AdminRolesPage() {
         setLoading(false);
       }
     });
-  }, [supabase]);
+  }, [supabase, load]);
 
   function setRowLocal(id: string, patch: Partial<Profile>) {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
