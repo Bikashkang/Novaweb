@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+import { findOrCreateConversation } from "@/lib/chat/conversations";
 
 type Row = {
   id: number;
@@ -20,6 +22,7 @@ type Patient = {
 
 export default function DoctorBookingsPage() {
   const supabase = getSupabaseBrowserClient();
+  const router = useRouter();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -145,20 +148,45 @@ export default function DoctorBookingsPage() {
                 </td>
                 <td className="py-2 pr-4">{r.status}</td>
                 <td className="py-2 pr-4">
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2">
+                    <div className="flex gap-2">
+                      <button
+                        className="rounded border px-2 py-1 text-sm"
+                        onClick={() => updateStatus(r.id, "accepted")}
+                        disabled={r.status === "accepted"}
+                      >
+                        Accept
+                      </button>
+                      <button
+                        className="rounded border px-2 py-1 text-sm"
+                        onClick={() => updateStatus(r.id, "declined")}
+                        disabled={r.status === "declined"}
+                      >
+                        Decline
+                      </button>
+                    </div>
                     <button
-                      className="rounded border px-2 py-1"
-                      onClick={() => updateStatus(r.id, "accepted")}
-                      disabled={r.status === "accepted"}
+                      className="text-sm text-blue-600 hover:underline text-left"
+                      onClick={async () => {
+                        const { data: userData } = await supabase.auth.getUser();
+                        const doctorId = userData.user?.id;
+                        if (!doctorId || !r.patient_id) {
+                          alert("Unable to start conversation");
+                          return;
+                        }
+                        const { data: conv, error: convError } = await findOrCreateConversation(
+                          r.patient_id,
+                          doctorId,
+                          r.id
+                        );
+                        if (convError || !conv) {
+                          alert(`Failed to create conversation: ${convError || "Unknown error"}`);
+                          return;
+                        }
+                        router.push(`/chat/${conv.id}`);
+                      }}
                     >
-                      Accept
-                    </button>
-                    <button
-                      className="rounded border px-2 py-1"
-                      onClick={() => updateStatus(r.id, "declined")}
-                      disabled={r.status === "declined"}
-                    >
-                      Decline
+                      Message Patient
                     </button>
                   </div>
                 </td>

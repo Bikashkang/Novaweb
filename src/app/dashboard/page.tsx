@@ -50,6 +50,9 @@ export default function DashboardPage() {
         <a href="/doctors" className="rounded border p-4 hover:bg-slate-50">
           Find Doctors and Book Appointments
         </a>
+        <a href="/chat" className="rounded border p-4 hover:bg-slate-50">
+          Messages
+        </a>
         {role === "doctor" && (
           <a href="/doctor/bookings" className="rounded border p-4 hover:bg-slate-50">
             View My Bookings

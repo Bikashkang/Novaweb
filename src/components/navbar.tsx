@@ -36,6 +36,7 @@ export function Navbar() {
           {identifier ? (
             <>
               <Link href="/dashboard" className="hover:underline">Dashboard</Link>
+              <Link href="/chat" className="hover:underline">Messages</Link>
               {role === "doctor" && (
                 <Link href="/doctor/bookings" className="hover:underline">My Bookings</Link>
               )}

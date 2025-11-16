@@ -4,6 +4,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type Profile = {
   id: string;
+  email?: string | null;
   full_name: string | null;
   phone: string | null;
   role: "patient" | "doctor" | "admin";
@@ -21,6 +22,22 @@ export default function AdminRolesPage() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    // Prefer RPC which returns all users with profiles joined
+    const rpc = await supabase.rpc("admin_list_users");
+    if (!rpc.error && Array.isArray(rpc.data)) {
+      const mapped: Profile[] = (rpc.data as any[]).map((r) => ({
+        id: r.id,
+        email: r.email ?? null,
+        full_name: r.full_name ?? null,
+        phone: r.phone ?? null,
+        role: (r.role ?? "patient") as Profile["role"],
+        doctor_slug: r.doctor_slug ?? null
+      }));
+      setRows(mapped);
+      setLoading(false);
+      return;
+    }
+    // Fallback to profiles table
     const { data, error } = await supabase
       .from("profiles")
       .select("id, full_name, phone, role, doctor_slug")
@@ -62,8 +79,7 @@ export default function AdminRolesPage() {
     setSaving((s) => ({ ...s, [p.id]: true }));
     const { error } = await supabase
       .from("profiles")
-      .update({ role: p.role, doctor_slug: p.doctor_slug })
-      .eq("id", p.id);
+      .upsert({ id: p.id, role: p.role, doctor_slug: p.doctor_slug }, { onConflict: "id" });
     if (error) alert(`Failed: ${error.message}`);
     setSaving((s) => ({ ...s, [p.id]: false }));
   }
@@ -94,7 +110,7 @@ export default function AdminRolesPage() {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id} className="border-b">
-                  <td className="py-2 pr-4">{r.full_name || r.id.slice(0, 8)}</td>
+                  <td className="py-2 pr-4">{r.full_name || r.email || r.id.slice(0, 8)}</td>
                   <td className="py-2 pr-4">{r.phone}</td>
                   <td className="py-2 pr-4">
                     <select

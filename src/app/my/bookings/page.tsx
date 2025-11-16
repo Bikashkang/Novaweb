@@ -1,9 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+import { findOrCreateConversation } from "@/lib/chat/conversations";
 
 type Row = {
   id: number;
+  doctor_id: string;
   doctor_identifier: string;
   appt_date: string;
   appt_time: string;
@@ -14,6 +17,7 @@ type Row = {
 
 export default function MyBookingsPage() {
   const supabase = getSupabaseBrowserClient();
+  const router = useRouter();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +38,7 @@ export default function MyBookingsPage() {
       }
       const { data, error } = await supabase
         .from("appointments")
-        .select("id, doctor_identifier, appt_date, appt_time, appt_type, status, created_at")
+        .select("id, doctor_id, doctor_identifier, appt_date, appt_time, appt_type, status, created_at")
         .eq("patient_id", userId)
         .order("created_at", { ascending: false });
       if (!active) return;
@@ -100,6 +104,7 @@ export default function MyBookingsPage() {
               <th className="py-2 pr-4">Type</th>
               <th className="py-2 pr-4">Doctor</th>
               <th className="py-2 pr-4">Status</th>
+              <th className="py-2 pr-4">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -110,6 +115,31 @@ export default function MyBookingsPage() {
                 <td className="py-2 pr-4">{r.appt_type === "video" ? "Video" : "In-clinic"}</td>
                 <td className="py-2 pr-4">{r.doctor_identifier}</td>
                 <td className="py-2 pr-4">{r.status}</td>
+                <td className="py-2 pr-4">
+                  <button
+                    className="text-sm text-blue-600 hover:underline"
+                    onClick={async () => {
+                      const { data: userData } = await supabase.auth.getUser();
+                      const patientId = userData.user?.id;
+                      if (!patientId || !r.doctor_id) {
+                        alert("Unable to start conversation");
+                        return;
+                      }
+                      const { data: conv, error: convError } = await findOrCreateConversation(
+                        patientId,
+                        r.doctor_id,
+                        r.id
+                      );
+                      if (convError || !conv) {
+                        alert(`Failed to create conversation: ${convError || "Unknown error"}`);
+                        return;
+                      }
+                      router.push(`/chat/${conv.id}`);
+                    }}
+                  >
+                    Message Doctor
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -118,6 +148,7 @@ export default function MyBookingsPage() {
     </main>
   );
 }
+
 
 
 
