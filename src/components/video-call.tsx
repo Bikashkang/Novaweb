@@ -28,6 +28,20 @@ export function VideoCallComponent({
   const [isLoading, setIsLoading] = useState(true);
   const frameRef = useRef<any>(null); // Track frame instance to prevent duplicates
   const isInitializingRef = useRef(false); // Prevent concurrent initialization
+  
+  // Use refs for values that shouldn't trigger re-initialization
+  const tokenRef = useRef(token);
+  const callRef = useRef(call);
+  const userIdRef = useRef(userId);
+  const partnerNameRef = useRef(partnerName);
+  const onCallEndRef = useRef(onCallEnd);
+  
+  // Update refs when props change (always keep them in sync)
+  tokenRef.current = token;
+  callRef.current = call;
+  userIdRef.current = userId;
+  partnerNameRef.current = partnerName;
+  onCallEndRef.current = onCallEnd;
 
   useEffect(() => {
     // Prevent re-initialization if already initializing or frame exists
@@ -40,6 +54,7 @@ export function VideoCallComponent({
     setError(null);
     isInitializingRef.current = true;
     
+    // Use props directly (they're the source of truth)
     if (!token || !call.room_url) {
       console.error("Missing required props:", { token: !!token, room_url: !!call.room_url });
       setError("Missing video call configuration. Please try again.");
@@ -321,7 +336,7 @@ export function VideoCallComponent({
           frame.on("loaded", () => {
             console.log("Daily.co frame loaded event fired");
             if (joinImmediatelyTimeout) {
-              clearTimeout(joinImmediatelyTimeout);
+              if (joinImmediatelyTimeout) clearTimeout(joinImmediatelyTimeout);
               joinImmediatelyTimeout = null;
             }
             if (loadingTimeout) clearTimeout(loadingTimeout);
@@ -386,7 +401,7 @@ export function VideoCallComponent({
           loadingTimeout = setTimeout(() => {
             if (!isCleanedUp && frame) {
               console.warn("Loading timeout after 2 seconds - clearing loading state");
-              clearTimeout(joinImmediatelyTimeout);
+              if (joinImmediatelyTimeout) clearTimeout(joinImmediatelyTimeout);
               frameRef.current = frame; // Store in ref
               setIsLoading(false);
               isInitializingRef.current = false; // Mark initialization complete
@@ -440,7 +455,8 @@ export function VideoCallComponent({
         }
       }
     };
-  }, [call.id]); // Only re-run if call.id changes (new call)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [call.id]); // Only re-run if call.id changes (new call) - other values are in refs
 
   // Daily.co iframe handles all controls (mute, video, end call) internally
 

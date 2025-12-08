@@ -111,7 +111,7 @@ export default function VideoCallPage() {
       setToken(callToken);
 
       // Mark user as joined when they enter waiting room
-      if (userIsDoctor && !videoCall.call.doctor_joined_at) {
+      if (userIsDoctor && videoCall.call && !videoCall.call.doctor_joined_at) {
         await supabase
           .from("video_calls")
           .update({ doctor_joined_at: new Date().toISOString() })
@@ -125,7 +125,7 @@ export default function VideoCallPage() {
         if (updatedCall && active) {
           setCall(updatedCall as VideoCall);
         }
-      } else if (!userIsDoctor && !videoCall.call.patient_joined_at) {
+      } else if (!userIsDoctor && videoCall.call && !videoCall.call.patient_joined_at) {
         await supabase
           .from("video_calls")
           .update({ patient_joined_at: new Date().toISOString() })
@@ -144,10 +144,12 @@ export default function VideoCallPage() {
       // Determine if should show waiting room
       // Doctor: show waiting room if call status is waiting and patient has joined
       // Patient: show waiting room until doctor admits them (status changes to active)
-      if (userIsDoctor) {
-        setShowWaitingRoom(videoCall.call.status === "waiting" && !!videoCall.call.patient_joined_at);
-      } else {
-        setShowWaitingRoom(videoCall.call.status === "waiting");
+      if (videoCall.call) {
+        if (userIsDoctor) {
+          setShowWaitingRoom(videoCall.call.status === "waiting" && !!videoCall.call.patient_joined_at);
+        } else {
+          setShowWaitingRoom(videoCall.call.status === "waiting");
+        }
       }
 
       setLoading(false);
@@ -192,6 +194,8 @@ export default function VideoCallPage() {
         // This ensures updates work even if realtime has issues
         pollInterval = setInterval(async () => {
           if (!active) return;
+          
+          if (!videoCall.call) return;
           
           const { data: currentCall } = await supabase
             .from("video_calls")
