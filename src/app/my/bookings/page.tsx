@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { findOrCreateConversation } from "@/lib/chat/conversations";
+import { isAppointmentTime } from "@/lib/video-calls/calls";
 
 type Row = {
   id: number;
@@ -116,29 +117,52 @@ export default function MyBookingsPage() {
                 <td className="py-2 pr-4">{r.doctor_identifier}</td>
                 <td className="py-2 pr-4">{r.status}</td>
                 <td className="py-2 pr-4">
-                  <button
-                    className="text-sm text-blue-600 hover:underline"
-                    onClick={async () => {
-                      const { data: userData } = await supabase.auth.getUser();
-                      const patientId = userData.user?.id;
-                      if (!patientId || !r.doctor_id) {
-                        alert("Unable to start conversation");
-                        return;
-                      }
-                      const { data: conv, error: convError } = await findOrCreateConversation(
-                        patientId,
-                        r.doctor_id,
-                        r.id
-                      );
-                      if (convError || !conv) {
-                        alert(`Failed to create conversation: ${convError || "Unknown error"}`);
-                        return;
-                      }
-                      router.push(`/chat/${conv.id}`);
-                    }}
-                  >
-                    Message Doctor
-                  </button>
+                  <div className="flex flex-col gap-1">
+                    <button
+                      className="text-sm text-blue-600 hover:underline"
+                      onClick={async () => {
+                        const { data: userData } = await supabase.auth.getUser();
+                        const patientId = userData.user?.id;
+                        if (!patientId || !r.doctor_id) {
+                          alert("Unable to start conversation");
+                          return;
+                        }
+                        const { data: conv, error: convError } = await findOrCreateConversation(
+                          patientId,
+                          r.doctor_id,
+                          r.id
+                        );
+                        if (convError || !conv) {
+                          alert(`Failed to create conversation: ${convError || "Unknown error"}`);
+                          return;
+                        }
+                        router.push(`/chat/${conv.id}`);
+                      }}
+                    >
+                      Message Doctor
+                    </button>
+                    {r.appt_type === "video" && r.status === "accepted" && (
+                      <button
+                        className={`text-sm font-medium ${
+                          isAppointmentTime(r.appt_date, r.appt_time)
+                            ? "text-green-600 hover:underline"
+                            : "text-slate-400 cursor-not-allowed"
+                        }`}
+                        onClick={() => {
+                          if (isAppointmentTime(r.appt_date, r.appt_time)) {
+                            router.push(`/appointments/${r.id}/video`);
+                          } else {
+                            alert("Video call is only available 15 minutes before and 45 minutes after the appointment time.");
+                          }
+                        }}
+                        disabled={!isAppointmentTime(r.appt_date, r.appt_time)}
+                      >
+                        {isAppointmentTime(r.appt_date, r.appt_time)
+                          ? "Join Video Call"
+                          : "Join Video Call (Not available yet)"}
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

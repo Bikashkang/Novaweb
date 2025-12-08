@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { findOrCreateConversation } from "@/lib/chat/conversations";
+import { isAppointmentTime } from "@/lib/video-calls/calls";
 
 type Row = {
   id: number;
@@ -31,6 +32,8 @@ export default function DoctorBookingsPage() {
 
   useEffect(() => {
     let active = true;
+    let subscription: { unsubscribe: () => void } | null = null;
+
     async function loadForDoctor() {
       setLoading(true);
       setError(null);
@@ -76,10 +79,67 @@ export default function DoctorBookingsPage() {
         setPatientById({});
       }
       setLoading(false);
+
+      // Subscribe to new appointments and updates
+      subscription = supabase
+        .channel("appointments:doctor")
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "appointments",
+            filter: `doctor_id=eq.${userId}`,
+          },
+          async (payload: any) => {
+            const newAppt = payload.new as Row & { id: number };
+            if (active) {
+              // Reload appointments to get full data and refresh patient list
+              const { data: reloadData } = await supabase
+                .from("appointments")
+                .select("id, patient_id, doctor_identifier, appt_date, appt_time, appt_type, status")
+                .eq("doctor_id", userId)
+                .order("created_at", { ascending: false });
+              if (reloadData) {
+                setRows(reloadData as Row[]);
+                // Update patient list
+                const newIds = Array.from(new Set(reloadData.map((a: Row) => a.patient_id)));
+                if (newIds.length > 0) {
+                  const { data: pats } = await supabase
+                    .from("profiles")
+                    .select("id, full_name, phone")
+                    .in("id", newIds);
+                  if (pats) {
+                    const map: Record<string, Patient> = {};
+                    for (const p of pats as Patient[]) map[p.id] = p;
+                    setPatientById(map);
+                  }
+                }
+              }
+            }
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "appointments",
+            filter: `doctor_id=eq.${userId}`,
+          },
+          (payload: any) => {
+            const updatedAppt = payload.new as Row & { id: number };
+            if (active) {
+              setRows((prev) => prev.map((r) => (r.id === updatedAppt.id ? { ...r, ...updatedAppt } : r)));
+            }
+          }
+        )
+        .subscribe();
     }
     loadForDoctor();
     return () => {
       active = false;
+      if (subscription) subscription.unsubscribe();
     };
   }, [supabase]);
 
@@ -188,6 +248,27 @@ export default function DoctorBookingsPage() {
                     >
                       Message Patient
                     </button>
+                    {r.appt_type === "video" && r.status === "accepted" && (
+                      <button
+                        className={`text-sm text-left font-medium ${
+                          isAppointmentTime(r.appt_date, r.appt_time)
+                            ? "text-green-600 hover:underline"
+                            : "text-slate-400 cursor-not-allowed"
+                        }`}
+                        onClick={() => {
+                          if (isAppointmentTime(r.appt_date, r.appt_time)) {
+                            router.push(`/appointments/${r.id}/video`);
+                          } else {
+                            alert("Video call is only available 15 minutes before and 45 minutes after the appointment time.");
+                          }
+                        }}
+                        disabled={!isAppointmentTime(r.appt_date, r.appt_time)}
+                      >
+                        {isAppointmentTime(r.appt_date, r.appt_time)
+                          ? "Start Video Call"
+                          : "Start Video Call (Not available yet)"}
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
