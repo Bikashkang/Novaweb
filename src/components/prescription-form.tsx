@@ -61,7 +61,9 @@ export function PrescriptionForm({
       }
       
       // Set patient age from initial data if available
-      setPatientAge(initialData?.patient_age || "");
+      if (initialData?.patient_age) {
+        setPatientAge(initialData.patient_age);
+      }
 
       // Load doctor profile
       const { data: doctorProfile } = await supabase

@@ -318,6 +318,7 @@ export async function generatePrescriptionPDF(
     // Ensure signature is at bottom of page
     const signatureY = pageHeight - margin - 25;
     const signatureX = pageWidth - margin - 50;
+    const signatureData = prescription.doctor_signature; // Store in local variable for type narrowing
     
     doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
@@ -326,13 +327,13 @@ export async function generatePrescriptionPDF(
     try {
       // Add signature image
       const img = new Image();
-      img.src = prescription.doctor_signature;
-      await new Promise((resolve, reject) => {
+      img.src = signatureData;
+      await new Promise<void>((resolve, reject) => {
         img.onload = () => {
           const imgWidth = 50; // 50mm width
           const imgHeight = (img.height / img.width) * imgWidth;
           doc.addImage(
-            prescription.doctor_signature,
+            signatureData,
             "PNG",
             signatureX - imgWidth,
             signatureY + 3,
@@ -342,7 +343,7 @@ export async function generatePrescriptionPDF(
           doc.setFontSize(7);
           doc.setFont("helvetica", "normal");
           doc.text(formatDate(prescription.created_at), signatureX, signatureY + imgHeight + 5, { align: "right" });
-          resolve(null);
+          resolve();
         };
         img.onerror = reject;
       });
