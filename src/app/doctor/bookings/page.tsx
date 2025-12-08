@@ -4,6 +4,9 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { findOrCreateConversation } from "@/lib/chat/conversations";
 import { isAppointmentTime } from "@/lib/video-calls/calls";
+import { PrescriptionForm } from "@/components/prescription-form";
+import { createPrescription } from "@/lib/prescriptions/prescriptions";
+import type { PrescriptionFormData } from "@/lib/prescriptions/prescriptions";
 
 type Row = {
   id: number;
@@ -29,6 +32,9 @@ export default function DoctorBookingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [doctorSlug, setDoctorSlug] = useState<string | null>(null);
   const [patientById, setPatientById] = useState<Record<string, Patient>>({});
+  const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<Row | null>(null);
+  const [creatingPrescription, setCreatingPrescription] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -248,6 +254,17 @@ export default function DoctorBookingsPage() {
                     >
                       Message Patient
                     </button>
+                    {(r.status === "accepted" || r.status === "completed") && (
+                      <button
+                        className="text-sm text-left font-medium text-blue-600 hover:underline"
+                        onClick={() => {
+                          setSelectedAppointment(r);
+                          setShowPrescriptionModal(true);
+                        }}
+                      >
+                        Create Prescription
+                      </button>
+                    )}
                     {r.appt_type === "video" && r.status === "accepted" && (
                       <button
                         className={`text-sm text-left font-medium ${
@@ -276,6 +293,73 @@ export default function DoctorBookingsPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Prescription Modal */}
+      {showPrescriptionModal && selectedAppointment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center">
+              <h2 className="text-xl font-semibold text-slate-900">Create Prescription</h2>
+              <button
+                onClick={() => {
+                  setShowPrescriptionModal(false);
+                  setSelectedAppointment(null);
+                }}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-6 w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6">
+              <PrescriptionForm
+                appointmentId={selectedAppointment.id}
+                patientId={selectedAppointment.patient_id}
+                onSave={async (data: PrescriptionFormData) => {
+                  setCreatingPrescription(true);
+                  const { data: userData } = await supabase.auth.getUser();
+                  const doctorId = userData.user?.id;
+                  if (!doctorId) {
+                    alert("You must be logged in to create a prescription");
+                    setCreatingPrescription(false);
+                    return;
+                  }
+
+                  const { prescription, error } = await createPrescription(
+                    selectedAppointment.id,
+                    doctorId,
+                    selectedAppointment.patient_id,
+                    data
+                  );
+
+                  if (error) {
+                    alert(`Failed to create prescription: ${error}`);
+                    setCreatingPrescription(false);
+                    return;
+                  }
+
+                  alert("Prescription created successfully!");
+                  setShowPrescriptionModal(false);
+                  setSelectedAppointment(null);
+                  setCreatingPrescription(false);
+                  router.push(`/prescriptions/${prescription?.id}`);
+                }}
+                onCancel={() => {
+                  setShowPrescriptionModal(false);
+                  setSelectedAppointment(null);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
