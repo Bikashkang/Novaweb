@@ -116,7 +116,7 @@ export function MedicineInput({ value, onChange, onRemove }: MedicineInputProps)
                 value={value.dosage}
                 onChange={(e) => onChange({ ...value, dosage: e.target.value })}
                 placeholder="e.g., 500mg"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
@@ -129,7 +129,7 @@ export function MedicineInput({ value, onChange, onRemove }: MedicineInputProps)
                 value={value.frequency}
                 onChange={(e) => onChange({ ...value, frequency: e.target.value })}
                 placeholder="e.g., Twice daily"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
@@ -142,7 +142,7 @@ export function MedicineInput({ value, onChange, onRemove }: MedicineInputProps)
                 value={value.duration}
                 onChange={(e) => onChange({ ...value, duration: e.target.value })}
                 placeholder="e.g., 7 days"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
@@ -158,7 +158,7 @@ export function MedicineInput({ value, onChange, onRemove }: MedicineInputProps)
               onChange={(e) => onChange({ ...value, instructions: e.target.value })}
               placeholder="Additional instructions (e.g., Take with food, Avoid alcohol)"
               rows={2}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </div>

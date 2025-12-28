@@ -103,7 +103,7 @@ export default function PhoneOtpPage() {
                 placeholder="+1 555 123 4567"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                className="w-full rounded border px-3 py-2"
+                className="w-full rounded border px-3 py-2 bg-white text-slate-900"
                 required
               />
               <p className="text-xs text-muted-foreground">Include country code, e.g. +1.</p>
@@ -132,7 +132,7 @@ export default function PhoneOtpPage() {
                 pattern="[0-9]*"
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
-                className="w-full rounded border px-3 py-2"
+                className="w-full rounded border px-3 py-2 bg-white text-slate-900"
                 required
               />
             </div>

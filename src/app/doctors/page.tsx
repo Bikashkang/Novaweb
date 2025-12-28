@@ -11,9 +11,9 @@ type DoctorProfile = {
 };
 
 function generateTimeOptions(): string[] {
-  // Every 30 minutes from 08:00 to 18:00
+  // Every 30 minutes from 00:00 to 23:30 (24/7)
   const times: string[] = [];
-  for (let h = 8; h <= 18; h++) {
+  for (let h = 0; h < 24; h++) {
     for (const m of [0, 30]) {
       const hh = String(h).padStart(2, "0");
       const mm = String(m).padStart(2, "0");
@@ -21,6 +21,42 @@ function generateTimeOptions(): string[] {
     }
   }
   return times;
+}
+
+/**
+ * Get available time slots for a given date
+ * Filters out past time slots if the date is today
+ */
+function getAvailableTimeSlots(date: string, allTimeOptions: string[]): string[] {
+  if (!date) return allTimeOptions;
+  
+  const today = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  
+  // If the selected date is today, filter out past time slots
+  if (date === today) {
+    // Add 30 minutes buffer to current time
+    const minTime = new Date(now.getTime() + 30 * 60 * 1000);
+    const minHour = minTime.getHours();
+    const minMinute = minTime.getMinutes();
+    
+    // Round up to next 30-minute slot
+    const nextSlotMinute = minMinute <= 30 ? 30 : 0;
+    const nextSlotHour = minMinute <= 30 ? minHour : minHour + 1;
+    
+    return allTimeOptions.filter((time) => {
+      const [hour, minute] = time.split(":").map(Number);
+      
+      // Compare hours and minutes
+      if (hour > nextSlotHour) return true;
+      if (hour < nextSlotHour) return false;
+      // Same hour, compare minutes
+      return minute >= nextSlotMinute;
+    });
+  }
+  
+  // For future dates, return all time slots
+  return allTimeOptions;
 }
 
 export default function DoctorsPage() {
@@ -50,7 +86,7 @@ export default function DoctorsPage() {
     };
   }, [supabase]);
 
-  const timeOptions = useMemo(() => generateTimeOptions(), []);
+  const allTimeOptions = useMemo(() => generateTimeOptions(), []);
   const [openFor, setOpenFor] = useState<string | null>(null); // key by doctor_slug
   const [dateByDoctor, setDateByDoctor] = useState<Record<string, string>>({});
   const [timeByDoctor, setTimeByDoctor] = useState<Record<string, string>>({});
@@ -59,9 +95,30 @@ export default function DoctorsPage() {
   function onOpen(doctorKey: string) {
     setOpenFor((prev) => (prev === doctorKey ? null : doctorKey));
     // initialize defaults if empty
-    setDateByDoctor((prev) => ({ ...prev, [doctorKey]: prev[doctorKey] ?? new Date().toISOString().slice(0, 10) }));
-    setTimeByDoctor((prev) => ({ ...prev, [doctorKey]: prev[doctorKey] ?? "09:00" }));
+    const today = new Date().toISOString().slice(0, 10);
+    const defaultDate = dateByDoctor[doctorKey] ?? today;
+    
+    // Get available time slots for the default date
+    const availableSlots = getAvailableTimeSlots(defaultDate, allTimeOptions);
+    const defaultTime = availableSlots.length > 0 ? availableSlots[0] : "00:00";
+    
+    setDateByDoctor((prev) => ({ ...prev, [doctorKey]: defaultDate }));
+    setTimeByDoctor((prev) => ({ ...prev, [doctorKey]: prev[doctorKey] && getAvailableTimeSlots(defaultDate, allTimeOptions).includes(prev[doctorKey]) ? prev[doctorKey] : defaultTime }));
     setTypeByDoctor((prev) => ({ ...prev, [doctorKey]: prev[doctorKey] ?? "video" }));
+  }
+  
+  function handleDateChange(doctorKey: string, newDate: string) {
+    setDateByDoctor((prev) => ({ ...prev, [doctorKey]: newDate }));
+    
+    // Get available time slots for the new date
+    const availableSlots = getAvailableTimeSlots(newDate, allTimeOptions);
+    
+    // If current time selection is not available, set to first available slot
+    const currentTime = timeByDoctor[doctorKey];
+    if (!currentTime || !availableSlots.includes(currentTime)) {
+      const defaultTime = availableSlots.length > 0 ? availableSlots[0] : "00:00";
+      setTimeByDoctor((prev) => ({ ...prev, [doctorKey]: defaultTime }));
+    }
   }
 
   async function onBook(doctor: DoctorProfile) {
@@ -77,6 +134,14 @@ export default function DoctorsPage() {
       alert("Please select both date and time.");
       return;
     }
+    
+    // Validate that the selected time is in the future
+    const availableSlots = getAvailableTimeSlots(date, allTimeOptions);
+    if (!availableSlots.includes(time)) {
+      alert("Please select a future time slot. Past time slots are not available.");
+      return;
+    }
+    
     const doctorIdentifier = slug;
     const { error } = await supabase.from("appointments").insert({
       patient_id: (await supabase.auth.getUser()).data.user?.id,
@@ -114,6 +179,8 @@ export default function DoctorsPage() {
             const timeVal = slug ? (timeByDoctor[slug] ?? "") : "";
             const typeVal = slug ? (typeByDoctor[slug] ?? "video") : "video";
             const disabled = !slug;
+            const availableTimeSlots = dateVal ? getAvailableTimeSlots(dateVal, allTimeOptions) : allTimeOptions;
+            
             return (
               <div key={slug || doc.id} className="rounded border p-4 flex flex-col gap-3">
                 <div className="flex items-start justify-between gap-3">
@@ -142,24 +209,30 @@ export default function DoctorsPage() {
                         <input
                           id={`date-${slug}`}
                           type="date"
-                          className="w-full rounded border px-3 py-2"
+                          className="w-full rounded border px-3 py-2 bg-white text-slate-900"
                           value={dateVal}
-                          onChange={(e) => setDateByDoctor((prev) => ({ ...prev, [slug]: e.target.value }))}
+                          onChange={(e) => handleDateChange(slug, e.target.value)}
                           min={new Date().toISOString().slice(0, 10)}
                         />
                       </div>
                       <div className="space-y-1">
                         <label className="text-sm" htmlFor={`time-${slug}`}>Time</label>
-                        <select
-                          id={`time-${slug}`}
-                          className="w-full rounded border px-3 py-2"
-                          value={timeVal}
-                          onChange={(e) => setTimeByDoctor((prev) => ({ ...prev, [slug]: e.target.value }))}
-                        >
-                          {timeOptions.map((t) => (
-                            <option key={t} value={t}>{t}</option>
-                          ))}
-                        </select>
+                        {availableTimeSlots.length > 0 ? (
+                          <select
+                            id={`time-${slug}`}
+                            className="w-full rounded border px-3 py-2 bg-white text-slate-900"
+                            value={timeVal}
+                            onChange={(e) => setTimeByDoctor((prev) => ({ ...prev, [slug]: e.target.value }))}
+                          >
+                            {availableTimeSlots.map((t) => (
+                              <option key={t} value={t}>{t}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="w-full rounded border px-3 py-2 bg-slate-100 text-slate-500 text-sm">
+                            No available slots today
+                          </div>
+                        )}
                       </div>
                       <div className="space-y-1">
                         <span className="text-sm">Type</span>
