@@ -46,6 +46,7 @@ export function Navbar() {
               {role === "admin" && (
                 <Link href="/admin/roles" className="hover:underline">Admin</Link>
               )}
+              <Link href="/my/profile" className="hover:underline">Profile</Link>
               <button
                 onClick={async () => {
                   await supabase.auth.signOut();

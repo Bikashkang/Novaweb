@@ -123,7 +123,7 @@ export function VideoCallComponent({
             (DailyModule as any).DailyIframe ||
             (DailyModule as any).default?.DailyIframe ||
             (DailyModule as any).default;
-          
+      
           if (!DailyIframeClass || typeof DailyIframeClass.createFrame !== "function") {
             throw new Error("DailyIframe not found in module");
           }
@@ -171,21 +171,21 @@ export function VideoCallComponent({
               console.warn("Frame already exists, skipping creation");
               frame = frameRef.current;
               isCleanedUp = false; // Reset cleanup flag
-              return;
-            }
-            
+        return;
+      }
+
             // Create the Daily.co iframe - Daily.co will create its own iframe inside the container
             try {
               frame = DailyIframeClass.createFrame(containerRef.current, {
-                showLeaveButton: true,
+        showLeaveButton: true,
                 showFullscreenButton: true,
                 showLocalVideo: true,
-                iframeStyle: {
-                  width: "100%",
-                  height: "100%",
-                  border: "none",
-                },
-              });
+        iframeStyle: {
+          width: "100%",
+          height: "100%",
+          border: "none",
+        },
+      });
             } catch (error: any) {
               console.error("Error creating Daily.co frame:", error);
               if (error?.message?.includes("Duplicate")) {
@@ -221,15 +221,15 @@ export function VideoCallComponent({
           // Handle call events BEFORE joining
           // Note: Daily.co iframe handles participants display internally
 
-          frame.on("left-meeting", () => {
+      frame.on("left-meeting", () => {
             console.log("Left meeting");
             if (!isCleanedUp) {
-              updateCallStatus(call.id, "ended", userId);
-              if (onCallEnd) {
-                onCallEnd();
-              }
+        updateCallStatus(call.id, "ended", userId);
+        if (onCallEnd) {
+          onCallEnd();
+        }
             }
-          });
+      });
 
           // Set up event handlers BEFORE joining
           
@@ -281,7 +281,7 @@ export function VideoCallComponent({
                   // Update call status to active
                   updateCallStatus(call.id, "active", userId).catch((err) => {
                     console.error("Failed to update call status:", err);
-                  });
+      });
                 }
               })
               .catch((error: any) => {
@@ -320,7 +320,7 @@ export function VideoCallComponent({
                 if (!isCleanedUp) {
                   setError(errorMsg);
                   setIsLoading(false);
-                }
+      }
               });
           };
           
@@ -385,7 +385,7 @@ export function VideoCallComponent({
               const errorMsg = error?.errorMsg || error?.message || error?.type || "Video call error occurred";
               setError(errorMsg);
               setIsLoading(false);
-            }
+    }
           });
 
           // Try joining immediately after a short delay (don't wait for loaded event)
@@ -408,7 +408,7 @@ export function VideoCallComponent({
               // Set callFrame even if events didn't fire - the iframe might still be working
               console.log("Setting callFrame from timeout fallback");
               setCallFrame(frame);
-            }
+      }
           }, 2000);
           };
           
@@ -418,7 +418,7 @@ export function VideoCallComponent({
           if (!isCleanedUp) {
             setError("Failed to initialize video call. Please refresh the page.");
             setIsLoading(false);
-          }
+    }
         }
       })
       .catch((error) => {
@@ -464,10 +464,10 @@ export function VideoCallComponent({
     <div className="flex flex-col h-full bg-slate-900">
       {/* Header */}
       <div className="bg-white border-b px-4 py-3">
-        <h2 className="font-semibold">Video Call</h2>
-        <p className="text-sm text-slate-600">
-          {partnerName || "Call in progress"}
-        </p>
+          <h2 className="font-semibold">Video Call</h2>
+          <p className="text-sm text-slate-600">
+            {partnerName || "Call in progress"}
+          </p>
       </div>
 
       {/* Video area */}
@@ -485,19 +485,19 @@ export function VideoCallComponent({
               <p>Loading video call...</p>
               <p className="text-sm text-slate-400 mt-2">Please allow camera and microphone access when prompted</p>
             </div>
-          </div>
+      </div>
         )}
         {error && (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-900 text-white z-30">
             <div className="text-center max-w-md p-6">
               <p className="text-red-400 mb-4">{error}</p>
-              <button
+          <button
                 onClick={() => window.location.reload()}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
+            >
                 Reload Page
-              </button>
-            </div>
+          </button>
+        </div>
           </div>
         )}
       </div>

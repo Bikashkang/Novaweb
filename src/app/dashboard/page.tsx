@@ -71,6 +71,9 @@ export default function DashboardPage() {
         <a href="/diagnostics" className="rounded border p-4 hover:bg-slate-50">
           Book Diagnostic Tests
         </a>
+        <a href="/my/profile" className="rounded border p-4 hover:bg-slate-50">
+          View My Profile
+        </a>
       </div>
     </main>
   );

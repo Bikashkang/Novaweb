@@ -153,10 +153,10 @@ export default function VideoCallPage() {
       // Doctor: show waiting room if call status is waiting and patient has joined
       // Patient: show waiting room until doctor admits them (status changes to active)
       if (videoCall.call) {
-        if (userIsDoctor) {
+      if (userIsDoctor) {
           setShowWaitingRoom(videoCall.call.status === "waiting" && !!videoCall.call.patient_joined_at);
         } else {
-          setShowWaitingRoom(videoCall.call.status === "waiting");
+        setShowWaitingRoom(videoCall.call.status === "waiting");
         }
       }
 
@@ -315,14 +315,14 @@ export default function VideoCallPage() {
               </button>
             </div>
           )}
-          <VideoCallComponent
-            call={call}
-            token={token}
-            appointmentId={appointmentId}
-            userId={currentUserId}
-            partnerName={partnerName}
-            onCallEnd={handleCallEnd}
-          />
+        <VideoCallComponent
+          call={call}
+          token={token}
+          appointmentId={appointmentId}
+          userId={currentUserId}
+          partnerName={partnerName}
+          onCallEnd={handleCallEnd}
+        />
         </>
       )}
 
