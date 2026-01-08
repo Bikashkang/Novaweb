@@ -13,7 +13,7 @@ export function PrescriptionView({ prescription, isDoctor = false }: Prescriptio
   const supabase = getSupabaseBrowserClient();
   const [patientName, setPatientName] = useState<string>("");
   const [doctorName, setDoctorName] = useState<string>("");
-  const [doctorDetails, setDoctorDetails] = useState<{ phone?: string; email?: string }>({});
+  const [doctorDetails, setDoctorDetails] = useState<{ phone?: string; email?: string; speciality?: string; registration_number?: string }>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,7 +35,7 @@ export function PrescriptionView({ prescription, isDoctor = false }: Prescriptio
       // Load doctor name and details
       const { data: doctorProfile } = await supabase
         .from("profiles")
-        .select("full_name, phone, email")
+        .select("full_name, phone, email, speciality, registration_number")
         .eq("id", prescription.doctor_id)
         .single();
       if (doctorProfile) {
@@ -43,6 +43,8 @@ export function PrescriptionView({ prescription, isDoctor = false }: Prescriptio
         setDoctorDetails({
           phone: doctorProfile.phone || undefined,
           email: doctorProfile.email || undefined,
+          speciality: doctorProfile.speciality || undefined,
+          registration_number: doctorProfile.registration_number || undefined,
         });
       }
 
@@ -89,11 +91,16 @@ export function PrescriptionView({ prescription, isDoctor = false }: Prescriptio
             </div>
           </div>
           <div className="text-right">
-            <h3 className="text-sm font-semibold text-slate-700 mb-2">DOCTOR INFORMATION</h3>
             <div className="text-sm text-slate-900 space-y-1">
-              <p>
-                <span className="font-medium">Name:</span> {doctorName}
-              </p>
+              <p className="font-bold">{doctorName}</p>
+              {doctorDetails.speciality && (
+                <p className="font-bold">{doctorDetails.speciality}</p>
+              )}
+              {doctorDetails.registration_number && (
+                <p>
+                  <span className="font-medium">Reg. No:</span> {doctorDetails.registration_number}
+                </p>
+              )}
               {doctorDetails.phone && (
                 <p>
                   <span className="font-medium">Phone:</span> {doctorDetails.phone}
@@ -111,8 +118,18 @@ export function PrescriptionView({ prescription, isDoctor = false }: Prescriptio
 
       {/* Patient Info */}
       <div className="mb-6">
-        <h3 className="text-sm font-semibold text-slate-700 mb-2">PATIENT INFORMATION</h3>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-semibold text-slate-700">PATIENT INFORMATION</h3>
+          <p className="text-sm font-semibold text-slate-700">
+            Date: {formatDate(prescription.created_at)}
+          </p>
+        </div>
         <div className="text-sm text-slate-900 space-y-1">
+          {prescription.appointment_id && (
+            <p>
+              <span className="font-medium">Appointment ID:</span> {prescription.appointment_id}
+            </p>
+          )}
           <p>
             <span className="font-medium">Name:</span> {patientName}
           </p>
@@ -121,12 +138,9 @@ export function PrescriptionView({ prescription, isDoctor = false }: Prescriptio
               <span className="font-medium">Age:</span> {prescription.patient_age}
             </p>
           )}
-          <p>
-            <span className="font-medium">Date:</span> {formatDate(prescription.created_at)}
-          </p>
-          {prescription.appointment_id && (
+          {prescription.patient_address && (
             <p>
-              <span className="font-medium">Appointment ID:</span> {prescription.appointment_id}
+              <span className="font-medium">Address:</span> {prescription.patient_address}
             </p>
           )}
         </div>
@@ -185,13 +199,15 @@ export function PrescriptionView({ prescription, isDoctor = false }: Prescriptio
         <div className="mt-8 pt-6 border-t border-slate-300">
           <div className="flex justify-end">
             <div className="text-right">
-              <p className="text-sm font-semibold text-slate-700 mb-2">Doctor Signature</p>
               <img
                 src={prescription.doctor_signature}
                 alt="Doctor Signature"
                 className="max-w-xs h-auto border border-slate-200 rounded ml-auto"
               />
-              <p className="text-sm text-slate-600 mt-2">{formatDate(prescription.created_at)}</p>
+              <p className="text-sm font-semibold text-slate-900 mt-2">{doctorName}</p>
+              {doctorDetails.speciality && (
+                <p className="text-sm text-slate-700 mt-1">{doctorDetails.speciality}</p>
+              )}
             </div>
           </div>
         </div>

@@ -9,6 +9,8 @@ type Profile = {
   phone: string | null;
   role: "patient" | "doctor" | "admin" | "medical_professional";
   doctor_slug: string | null;
+  speciality: string | null;
+  registration_number: string | null;
 };
 
 export default function AdminRolesPage() {
@@ -34,7 +36,9 @@ export default function AdminRolesPage() {
         full_name: r.full_name ?? null,
         phone: r.phone ?? null,
         role: (r.role ?? "patient") as Profile["role"],
-        doctor_slug: r.doctor_slug ?? null
+        doctor_slug: r.doctor_slug ?? null,
+        speciality: r.speciality ?? null,
+        registration_number: r.registration_number ?? null
       }));
       setRows(mapped);
       setLoading(false);
@@ -51,7 +55,7 @@ export default function AdminRolesPage() {
     // Note: This might miss users who don't have profiles yet
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, full_name, phone, role, doctor_slug")
+      .select("id, full_name, phone, role, doctor_slug, speciality, registration_number")
       .order("created_at", { ascending: false });
     
     if (error) {
@@ -65,7 +69,9 @@ export default function AdminRolesPage() {
         full_name: p.full_name ?? null,
         phone: p.phone ?? null,
         role: (p.role ?? "patient") as Profile["role"],
-        doctor_slug: p.doctor_slug ?? null
+        doctor_slug: p.doctor_slug ?? null,
+        speciality: p.speciality ?? null,
+        registration_number: p.registration_number ?? null
       }));
       setRows(mapped);
       if (rpc.error) {
@@ -108,7 +114,13 @@ export default function AdminRolesPage() {
     setSaving((s) => ({ ...s, [p.id]: true }));
     const { error } = await supabase
       .from("profiles")
-      .upsert({ id: p.id, role: p.role, doctor_slug: p.doctor_slug }, { onConflict: "id" });
+      .upsert({ 
+        id: p.id, 
+        role: p.role, 
+        doctor_slug: p.doctor_slug,
+        speciality: p.speciality,
+        registration_number: p.registration_number
+      }, { onConflict: "id" });
     if (error) {
       setError(`Failed to save: ${error.message}`);
     } else {
@@ -127,6 +139,8 @@ export default function AdminRolesPage() {
       (row.phone?.toLowerCase().includes(query)) ||
       (row.role?.toLowerCase().includes(query)) ||
       (row.doctor_slug?.toLowerCase().includes(query)) ||
+      (row.speciality?.toLowerCase().includes(query)) ||
+      (row.registration_number?.toLowerCase().includes(query)) ||
       (row.id.toLowerCase().includes(query))
     );
   });
@@ -152,7 +166,7 @@ export default function AdminRolesPage() {
           <div className="mb-4">
             <input
               type="text"
-              placeholder="Search by name, email, phone, role, or doctor slug..."
+              placeholder="Search by name, email, phone, role, doctor slug, speciality, or registration number..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full max-w-md px-4 py-2 border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -202,6 +216,8 @@ export default function AdminRolesPage() {
                     <th className="py-3 px-4 font-semibold text-slate-900">Phone</th>
                     <th className="py-3 px-4 font-semibold text-slate-900">Role</th>
                     <th className="py-3 px-4 font-semibold text-slate-900">Doctor Slug</th>
+                    <th className="py-3 px-4 font-semibold text-slate-900">Speciality</th>
+                    <th className="py-3 px-4 font-semibold text-slate-900">Registration #</th>
                     <th className="py-3 px-4 font-semibold text-slate-900">Actions</th>
                   </tr>
                 </thead>
@@ -238,6 +254,32 @@ export default function AdminRolesPage() {
                           placeholder="doctor-identifier"
                           onChange={(e) => setRowLocal(r.id, { doctor_slug: e.target.value })}
                         />
+                      </td>
+                      <td className="py-3 px-4">
+                        {(r.role === "doctor" || r.role === "medical_professional") ? (
+                          <input
+                            type="text"
+                            className="w-full border border-slate-300 rounded px-3 py-1.5 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            value={r.speciality || ""}
+                            placeholder="e.g., Cardiology"
+                            onChange={(e) => setRowLocal(r.id, { speciality: e.target.value })}
+                          />
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4">
+                        {(r.role === "doctor" || r.role === "medical_professional") ? (
+                          <input
+                            type="text"
+                            className="w-full border border-slate-300 rounded px-3 py-1.5 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            value={r.registration_number || ""}
+                            placeholder="Registration number"
+                            onChange={(e) => setRowLocal(r.id, { registration_number: e.target.value })}
+                          />
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
                       </td>
                       <td className="py-3 px-4">
                         <button

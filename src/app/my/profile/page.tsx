@@ -10,6 +10,8 @@ type ProfileData = {
   role: string | null;
   created_at: string | null;
   doctor_slug: string | null;
+  speciality: string | null;
+  registration_number: string | null;
 };
 
 export default function ProfilePage() {
@@ -24,6 +26,8 @@ export default function ProfilePage() {
   const [formData, setFormData] = useState({
     full_name: "",
     phone: "",
+    speciality: "",
+    registration_number: "",
   });
 
   const loadProfile = useCallback(async () => {
@@ -38,7 +42,7 @@ export default function ProfilePage() {
 
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
-      .select("full_name, phone, role, created_at, doctor_slug")
+      .select("full_name, phone, role, created_at, doctor_slug, speciality, registration_number")
       .eq("id", userData.user.id)
       .single();
 
@@ -55,12 +59,16 @@ export default function ProfilePage() {
       role: profileData?.role || null,
       created_at: profileData?.created_at || null,
       doctor_slug: profileData?.doctor_slug || null,
+      speciality: profileData?.speciality || null,
+      registration_number: profileData?.registration_number || null,
     };
 
     setProfile(profileInfo);
     setFormData({
       full_name: profileInfo.full_name || "",
       phone: profileInfo.phone || "",
+      speciality: profileInfo.speciality || "",
+      registration_number: profileInfo.registration_number || "",
     });
     setLoading(false);
   }, [supabase, router]);
@@ -87,12 +95,20 @@ export default function ProfilePage() {
       return;
     }
 
+    const updateData: any = {
+      full_name: formData.full_name.trim(),
+      phone: formData.phone.trim() || null,
+    };
+
+    // Only update speciality and registration_number for doctors and medical professionals
+    if (profile?.role === "doctor" || profile?.role === "medical_professional") {
+      updateData.speciality = formData.speciality.trim() || null;
+      updateData.registration_number = formData.registration_number.trim() || null;
+    }
+
     const { error: updateError } = await supabase
       .from("profiles")
-      .update({
-        full_name: formData.full_name.trim(),
-        phone: formData.phone.trim() || null,
-      })
+      .update(updateData)
       .eq("id", userData.user.id);
 
     if (updateError) {
@@ -112,6 +128,8 @@ export default function ProfilePage() {
       setFormData({
         full_name: profile.full_name || "",
         phone: profile.phone || "",
+        speciality: profile.speciality || "",
+        registration_number: profile.registration_number || "",
       });
     }
     setEditing(false);
@@ -239,6 +257,46 @@ export default function ProfilePage() {
               </label>
               <p className="text-slate-900 font-mono text-sm">{profile.doctor_slug}</p>
               <p className="text-xs text-slate-500 mt-1">Used for appointment bookings</p>
+            </div>
+          )}
+
+          {/* Speciality (for doctors and medical professionals) */}
+          {(profile.role === "doctor" || profile.role === "medical_professional") && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Speciality
+              </label>
+              {editing ? (
+                <input
+                  type="text"
+                  value={formData.speciality}
+                  onChange={(e) => setFormData({ ...formData, speciality: e.target.value })}
+                  placeholder="e.g., Cardiology, Pediatrics, etc."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              ) : (
+                <p className="text-slate-900">{profile.speciality || "Not set"}</p>
+              )}
+            </div>
+          )}
+
+          {/* Registration Number (for doctors and medical professionals) */}
+          {(profile.role === "doctor" || profile.role === "medical_professional") && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Registration Number
+              </label>
+              {editing ? (
+                <input
+                  type="text"
+                  value={formData.registration_number}
+                  onChange={(e) => setFormData({ ...formData, registration_number: e.target.value })}
+                  placeholder="Professional registration number"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              ) : (
+                <p className="text-slate-900">{profile.registration_number || "Not set"}</p>
+              )}
             </div>
           )}
 

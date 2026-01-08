@@ -8,7 +8,7 @@ export async function generatePrescriptionHTML(
   prescription: Prescription,
   patientName: string,
   doctorName: string,
-  doctorDetails?: { phone?: string; email?: string }
+  doctorDetails?: { phone?: string; email?: string; speciality?: string; registration_number?: string }
 ): Promise<string> {
   // Use patient_name from prescription if available, otherwise use provided patientName
   const displayPatientName = prescription.patient_name || patientName;
@@ -42,16 +42,17 @@ export async function generatePrescriptionHTML(
     ? `<div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #cbd5e1;">
          <div style="display: flex; justify-content: flex-end;">
            <div style="text-align: right;">
-             <p style="font-weight: 600; font-size: 14px; color: #475569; margin-bottom: 10px;">Doctor Signature</p>
              <img src="${prescription.doctor_signature}" alt="Doctor Signature" style="max-width: 300px; height: auto; border: 1px solid #e2e8f0; border-radius: 4px; margin-left: auto;" />
-             <p style="font-size: 14px; color: #64748b; margin-top: 8px;">${formatDate(prescription.created_at)}</p>
+             <p style="font-weight: 600; font-size: 14px; color: #1e293b; margin-top: 8px;">${doctorName}</p>
+             ${doctorDetails?.speciality ? `<p style="font-size: 13px; color: #475569; margin-top: 4px;">${doctorDetails.speciality}</p>` : ""}
            </div>
          </div>
        </div>`
     : "";
 
   const doctorDetailsHTML = doctorDetails
-    ? `${doctorDetails.phone ? `<p style="margin: 5px 0;"><strong>Phone:</strong> ${doctorDetails.phone}</p>` : ""}
+    ? `${doctorDetails.registration_number ? `<p style="margin: 5px 0;"><strong>Reg. No:</strong> ${doctorDetails.registration_number}</p>` : ""}
+       ${doctorDetails.phone ? `<p style="margin: 5px 0;"><strong>Phone:</strong> ${doctorDetails.phone}</p>` : ""}
        ${doctorDetails.email ? `<p style="margin: 5px 0;"><strong>Email:</strong> ${doctorDetails.email}</p>` : ""}`
     : "";
 
@@ -123,9 +124,9 @@ export async function generatePrescriptionHTML(
         </div>
       </div>
       <div style="text-align: right;">
-        <h3 style="font-size: 14px; font-weight: 600; color: #475569; margin-bottom: 10px;">DOCTOR INFORMATION</h3>
         <div style="font-size: 14px; color: #1e293b;">
-          <p style="margin: 5px 0;"><strong>Name:</strong> ${doctorName}</p>
+          <p style="margin: 5px 0; font-weight: bold;">${doctorName}</p>
+          ${doctorDetails?.speciality ? `<p style="margin: 5px 0; font-weight: bold;">${doctorDetails.speciality}</p>` : ""}
           ${doctorDetailsHTML}
         </div>
       </div>
@@ -133,12 +134,15 @@ export async function generatePrescriptionHTML(
   </div>
 
   <div style="margin-bottom: 25px;">
-    <h3 style="font-size: 14px; font-weight: 600; color: #475569; margin-bottom: 10px;">PATIENT INFORMATION</h3>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      <h3 style="font-size: 14px; font-weight: 600; color: #475569; margin: 0;">PATIENT INFORMATION</h3>
+      <p style="font-size: 14px; font-weight: 600; color: #475569; margin: 0;">Date: ${formatDate(prescription.created_at)}</p>
+    </div>
     <div style="font-size: 14px; color: #1e293b;">
+      ${prescription.appointment_id ? `<p style="margin: 5px 0;"><strong>Appointment ID:</strong> ${prescription.appointment_id}</p>` : ""}
       <p style="margin: 5px 0;"><strong>Name:</strong> ${displayPatientName}</p>
       ${prescription.patient_age ? `<p style="margin: 5px 0;"><strong>Age:</strong> ${prescription.patient_age}</p>` : ""}
-      <p style="margin: 5px 0;"><strong>Date:</strong> ${formatDate(prescription.created_at)}</p>
-      ${prescription.appointment_id ? `<p style="margin: 5px 0;"><strong>Appointment ID:</strong> ${prescription.appointment_id}</p>` : ""}
+      ${prescription.patient_address ? `<p style="margin: 5px 0;"><strong>Address:</strong> ${prescription.patient_address}</p>` : ""}
     </div>
   </div>
 
@@ -163,7 +167,7 @@ export async function generatePrescriptionPDF(
   prescription: Prescription,
   patientName: string,
   doctorName: string,
-  doctorDetails?: { phone?: string; email?: string }
+  doctorDetails?: { phone?: string; email?: string; speciality?: string; registration_number?: string }
 ): Promise<Blob> {
   // Use patient_name from prescription if available, otherwise use provided patientName
   const displayPatientName = prescription.patient_name || patientName;
@@ -230,17 +234,26 @@ export async function generatePrescriptionPDF(
   
   yPos += 18;
 
-  // Doctor Information on the right side of header
-  doc.setFontSize(9);
+  // Doctor Information on the right side of header (all aligned together)
+  doc.setFontSize(8);
+  const doctorInfoX = pageWidth - margin - 50;
+  let doctorY = margin + 5;
+  
+  // Doctor name (bold)
   doc.setFont("helvetica", "bold");
   doc.setTextColor(0, 0, 0);
-  const doctorInfoX = pageWidth - margin - 50;
-  doc.text("DOCTOR INFORMATION", doctorInfoX, margin + 5);
+  doctorY = addText(doctorName, doctorInfoX, doctorY, 50);
   
+  // Speciality (bold)
+  if (doctorDetails?.speciality) {
+    doctorY = addText(doctorDetails.speciality, doctorInfoX, doctorY, 50);
+  }
+  
+  // Other doctor details (normal)
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  let doctorY = margin + 10;
-  doctorY = addText(`Name: ${doctorName}`, doctorInfoX, doctorY, 50);
+  if (doctorDetails?.registration_number) {
+    doctorY = addText(`Reg. No: ${doctorDetails.registration_number}`, doctorInfoX, doctorY, 50);
+  }
   if (doctorDetails?.phone) {
     doctorY = addText(`Phone: ${doctorDetails.phone}`, doctorInfoX, doctorY, 50);
   }
@@ -248,42 +261,69 @@ export async function generatePrescriptionPDF(
     doctorY = addText(`Email: ${doctorDetails.email}`, doctorInfoX, doctorY, 50);
   }
 
+  // Add space and separator line between header and body
+  yPos = Math.max(yPos, doctorY) + 10; // Ensure we're past the doctor info
+  doc.setDrawColor(203, 213, 225); // slate-300
+  doc.setLineWidth(1);
+  doc.line(margin, yPos, pageWidth - margin, yPos);
+  yPos += 8; // Space after separator line
+
   // Patient Information
-  yPos += 8;
   doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(0, 0, 0);
+  doc.setTextColor(71, 85, 105); // slate-600
   doc.text("PATIENT INFORMATION", margin, yPos);
+  // Add date on the same line, aligned right
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  const dateText = `Date: ${formatDate(prescription.created_at)}`;
+  const dateWidth = doc.getTextWidth(dateText);
+  doc.text(dateText, pageWidth - margin - dateWidth, yPos);
   yPos += 6;
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
+  if (prescription.appointment_id) {
+    yPos = addText(`Appointment ID: ${prescription.appointment_id}`, margin, yPos, pageWidth / 2 - margin * 2);
+  }
   yPos = addText(`Name: ${displayPatientName}`, margin, yPos, pageWidth / 2 - margin * 2);
   if (prescription.patient_age) {
     yPos = addText(`Age: ${prescription.patient_age}`, margin, yPos, pageWidth / 2 - margin * 2);
   }
-  yPos = addText(`Date: ${formatDate(prescription.created_at)}`, margin, yPos, pageWidth / 2 - margin * 2);
-  if (prescription.appointment_id) {
-    yPos = addText(`Appointment ID: ${prescription.appointment_id}`, margin, yPos, pageWidth / 2 - margin * 2);
+  if (prescription.patient_address) {
+    yPos = addText(`Address: ${prescription.patient_address}`, margin, yPos, pageWidth / 2 - margin * 2);
   }
   yPos += 10;
 
   // Observations
   if (prescription.observations) {
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "bold");
+    doc.setTextColor(71, 85, 105); // slate-600
     doc.text("OBSERVATIONS", margin, yPos);
     yPos += 6;
 
+    // Calculate text height first
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    yPos = addText(prescription.observations, margin, yPos, pageWidth - margin * 2);
+    const obsLines = doc.splitTextToSize(prescription.observations, pageWidth - margin * 2 - 4);
+    const obsTextHeight = obsLines.length * (9 * 0.4) + 4;
+    
+    // Draw background box for observations
+    const obsStartY = yPos - 2;
+    
+    // Fill background (slate-50)
+    doc.setFillColor(248, 250, 252);
+    doc.rect(margin, obsStartY, pageWidth - margin * 2, obsTextHeight, "F");
+    
+    yPos = addText(prescription.observations, margin + 2, yPos, pageWidth - margin * 2 - 4);
     yPos += 8;
   }
 
   // Medicines
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
+  doc.setTextColor(71, 85, 105); // slate-600
   doc.text("PRESCRIBED MEDICINES", margin, yPos);
   yPos += 8;
 
@@ -297,61 +337,161 @@ export async function generatePrescriptionPDF(
       yPos = margin;
     }
 
+    // Medicine box (simulate border and background)
+    const boxStartY = yPos - 2;
+    const leftColX = margin + 3;
+    const rightColX = margin + (pageWidth - margin * 2) / 2 + 3;
+    let currentY = yPos + 3;
+    
+    // Calculate content height first (without drawing)
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
-    doc.text(`${index + 1}. ${medicine.name}`, margin, yPos);
-    yPos += 5;
-
+    const medicineLines = doc.splitTextToSize(`Medicine: ${medicine.name}`, (pageWidth - margin * 2) / 2 - 6);
+    let estimatedHeight = medicineLines.length * (9 * 0.4);
+    
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
-    yPos = addText(`Dosage: ${medicine.dosage}`, margin + 3, yPos, pageWidth - margin * 2 - 3, 8);
-    yPos = addText(`Frequency: ${medicine.frequency}`, margin + 3, yPos, pageWidth - margin * 2 - 3, 8);
-    yPos = addText(`Duration: ${medicine.duration}`, margin + 3, yPos, pageWidth - margin * 2 - 3, 8);
+    const dosageLines = doc.splitTextToSize(`Dosage: ${medicine.dosage}`, (pageWidth - margin * 2) / 2 - 6);
+    const frequencyLines = doc.splitTextToSize(`Frequency: ${medicine.frequency}`, (pageWidth - margin * 2) / 2 - 6);
+    estimatedHeight += Math.max(dosageLines.length, frequencyLines.length) * (8 * 0.4);
+    
+    const durationLines = doc.splitTextToSize(`Duration: ${medicine.duration}`, (pageWidth - margin * 2) / 2 - 6);
+    estimatedHeight += durationLines.length * (8 * 0.4);
+    
     if (medicine.instructions) {
-      yPos = addText(`Instructions: ${medicine.instructions}`, margin + 3, yPos, pageWidth - margin * 2 - 3, 8);
+      const instructionLines = doc.splitTextToSize(`Instructions: ${medicine.instructions}`, pageWidth - margin * 2 - 6);
+      estimatedHeight += instructionLines.length * (8 * 0.4);
     }
-    yPos += 6;
+    
+    const boxHeight = estimatedHeight + 4;
+    
+    // Draw border rectangle (light gray)
+    doc.setDrawColor(226, 232, 240); // slate-200
+    doc.setLineWidth(0.5);
+    doc.rect(margin, boxStartY, pageWidth - margin * 2, boxHeight);
+    
+    // Fill with light background
+    doc.setFillColor(248, 250, 252); // slate-50
+    doc.rect(margin, boxStartY, pageWidth - margin * 2, boxHeight, "FD");
+    
+    // Draw text on top of background
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    currentY = addText(`Medicine: ${medicine.name}`, leftColX, currentY, (pageWidth - margin * 2) / 2 - 6, 9);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    const dosageY = addText(`Dosage: ${medicine.dosage}`, leftColX, currentY, (pageWidth - margin * 2) / 2 - 6, 8);
+    const frequencyY = addText(`Frequency: ${medicine.frequency}`, rightColX, currentY, (pageWidth - margin * 2) / 2 - 6, 8);
+    currentY = Math.max(dosageY, frequencyY);
+    
+    const durationY = addText(`Duration: ${medicine.duration}`, leftColX, currentY, (pageWidth - margin * 2) / 2 - 6, 8);
+    currentY = durationY;
+    
+    if (medicine.instructions) {
+      currentY = addText(`Instructions: ${medicine.instructions}`, leftColX, currentY, pageWidth - margin * 2 - 6, 8);
+    }
+    
+    yPos = currentY + 6;
   });
 
-  // Signature - Bottom Right
+  // Signature - Bottom Right (positioned at bottom of page)
   if (prescription.doctor_signature) {
-    // Ensure signature is at bottom of page
-    const signatureY = pageHeight - margin - 25;
-    const signatureX = pageWidth - margin - 50;
     const signatureData = prescription.doctor_signature; // Store in local variable for type narrowing
+    const signatureX = pageWidth - margin;
     
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "bold");
-    doc.text("Doctor Signature", signatureX, signatureY, { align: "right" });
-    
+    // Position signature at bottom of page
+    // First, load image to get actual dimensions
     try {
-      // Add signature image
       const img = new Image();
       img.src = signatureData;
       await new Promise<void>((resolve, reject) => {
         img.onload = () => {
           const imgWidth = 50; // 50mm width
           const imgHeight = (img.height / img.width) * imgWidth;
+          
+          // Position signature at bottom of page with proper spacing
+          // Leave space for name (4mm) and speciality (4mm) = 8mm total
+          const signatureBottomY = pageHeight - margin - 5; // 5mm from bottom
+          const signatureY = signatureBottomY - imgHeight - 8; // 8mm for text below
+          
+          // Add border line above signature (8mm above signature image)
+          const borderY = signatureY - 8;
+          doc.setDrawColor(203, 213, 225); // slate-300
+          doc.setLineWidth(0.5);
+          doc.line(margin, borderY, pageWidth - margin, borderY);
+          
+          // Draw border around signature image
+          doc.setDrawColor(226, 232, 240); // slate-200
+          doc.setLineWidth(0.5);
+          doc.rect(signatureX - imgWidth - 1, signatureY - 1, imgWidth + 2, imgHeight + 2);
+          
+          // Add signature image
           doc.addImage(
             signatureData,
             "PNG",
             signatureX - imgWidth,
-            signatureY + 3,
+            signatureY,
             imgWidth,
             imgHeight
           );
-          doc.setFontSize(7);
-          doc.setFont("helvetica", "normal");
-          doc.text(formatDate(prescription.created_at), signatureX, signatureY + imgHeight + 5, { align: "right" });
+          
+          // Add doctor name and speciality below signature
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(0, 0, 0);
+          doc.text(doctorName, signatureX, signatureY + imgHeight + 4, { align: "right" });
+          
+          if (doctorDetails?.speciality) {
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(51, 65, 85); // slate-700
+            doc.text(doctorDetails.speciality, signatureX, signatureY + imgHeight + 8, { align: "right" });
+          }
           resolve();
         };
-        img.onerror = reject;
+        img.onerror = () => {
+          // Fallback if image fails to load
+          const signatureBottomY = pageHeight - margin - 5;
+          const signatureY = signatureBottomY - 15 - 8; // Default 15mm height
+          const borderY = signatureY - 8;
+          doc.setDrawColor(203, 213, 225);
+          doc.setLineWidth(0.5);
+          doc.line(margin, borderY, pageWidth - margin, borderY);
+          
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(0, 0, 0);
+          doc.text(doctorName, signatureX, signatureY + 5, { align: "right" });
+          if (doctorDetails?.speciality) {
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(51, 65, 85);
+            doc.text(doctorDetails.speciality, signatureX, signatureY + 9, { align: "right" });
+          }
+          resolve();
+        };
       });
     } catch (error) {
       console.error("Error adding signature image:", error);
-      doc.setFontSize(7);
-      doc.setFont("helvetica", "normal");
-      doc.text(formatDate(prescription.created_at), signatureX, signatureY + 5, { align: "right" });
+      // Fallback positioning
+      const signatureBottomY = pageHeight - margin - 5;
+      const signatureY = signatureBottomY - 15 - 8;
+      const borderY = signatureY - 8;
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.5);
+      doc.line(margin, borderY, pageWidth - margin, borderY);
+      
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(0, 0, 0);
+      doc.text(doctorName, signatureX, signatureY + 5, { align: "right" });
+      if (doctorDetails?.speciality) {
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(51, 65, 85);
+        doc.text(doctorDetails.speciality, signatureX, signatureY + 9, { align: "right" });
+      }
     }
   }
 
@@ -365,7 +505,7 @@ export async function downloadPrescriptionPDF(
   prescription: Prescription,
   patientName: string,
   doctorName: string,
-  doctorDetails?: { phone?: string; email?: string },
+  doctorDetails?: { phone?: string; email?: string; speciality?: string; registration_number?: string },
   filename?: string
 ) {
   const blob = await generatePrescriptionPDF(prescription, patientName, doctorName, doctorDetails);
@@ -386,7 +526,7 @@ export async function downloadPrescriptionHTML(
   prescription: Prescription,
   patientName: string,
   doctorName: string,
-  doctorDetails?: { phone?: string; email?: string },
+  doctorDetails?: { phone?: string; email?: string; speciality?: string; registration_number?: string },
   filename?: string
 ) {
   const html = await generatePrescriptionHTML(prescription, patientName, doctorName, doctorDetails);
@@ -408,7 +548,7 @@ export async function printPrescription(
   prescription: Prescription,
   patientName: string,
   doctorName: string,
-  doctorDetails?: { phone?: string; email?: string }
+  doctorDetails?: { phone?: string; email?: string; speciality?: string; registration_number?: string }
 ) {
   const html = await generatePrescriptionHTML(prescription, patientName, doctorName, doctorDetails);
   const printWindow = window.open("", "_blank");
