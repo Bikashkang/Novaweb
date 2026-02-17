@@ -17,8 +17,7 @@ export async function middleware(request: NextRequest) {
                     return request.cookies.getAll()
                 },
                 setAll(cookiesToSet) {
-                    console.log('[Middleware] Setting cookies:', cookiesToSet.map(c => c.name).join(', '))
-                    cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+                    cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
                     response = NextResponse.next({
                         request: {
                             headers: request.headers,
@@ -32,12 +31,7 @@ export async function middleware(request: NextRequest) {
         }
     )
 
-    const { data: { user }, error } = await supabase.auth.getUser()
-    console.log('[Middleware] Auth Check:', {
-        path: request.nextUrl.pathname,
-        hasUser: !!user,
-        error: error?.message
-    })
+    await supabase.auth.getUser()
 
     return response
 }

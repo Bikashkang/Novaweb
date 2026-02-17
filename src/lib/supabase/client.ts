@@ -2,13 +2,15 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 let browserClient: SupabaseClient | null = null;
 
-const cookieStorage = {
+// CRITICAL: Storage must handle values as-is since Supabase does JSON stringify/parse internally
+const properCookieStorage = {
   getItem: (key: string) => {
     if (typeof document === 'undefined') return null;
     const match = document.cookie.match(new RegExp('(^| )' + key + '=([^;]+)'));
     if (match) {
+      const value = decodeURIComponent(match[2]);
       console.log(`[CookieStorage] GET ${key}: FOUND`);
-      return decodeURIComponent(match[2]);
+      return value; // Already JSON string from Supabase
     }
     console.log(`[CookieStorage] GET ${key}: NOT FOUND`);
     return null;
@@ -16,7 +18,7 @@ const cookieStorage = {
   setItem: (key: string, value: string) => {
     if (typeof document === 'undefined') return;
     console.log(`[CookieStorage] SET ${key}`);
-    // Set cookie with 1 year expiry and path /
+    // value is already JSON-stringified by Supabase
     const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
     document.cookie = `${key}=${encodeURIComponent(value)}; path=/; expires=${expires}; SameSite=Lax; Secure`;
   },
@@ -27,11 +29,9 @@ const cookieStorage = {
   }
 };
 
-// Custom lock implementation to bypass Navigator.locks timeout issues
-// Based on GoTrueClient implementation, lock should be a function
+// CRITICAL: No-op lock to bypass browser lock API entirely
 const noOpLock = async <R>(name: string, acquireTimeout: number, fn: () => Promise<R>): Promise<R> => {
-  // console.log(`[NoOpLock] Bypassing lock for ${name}`); 
-  return await fn();
+  return await fn(); // No locking, just execute immediately
 };
 
 export function getSupabaseBrowserClient(): SupabaseClient {
@@ -55,16 +55,16 @@ export function getSupabaseBrowserClient(): SupabaseClient {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      storage: cookieStorage,
-      lock: noOpLock, // Bypass Navigator.locks
-      debug: true
+      storage: properCookieStorage,
+      lock: noOpLock,
+      flowType: 'pkce', // Use PKCE flow for better security
     }
   });
 
   if (typeof window !== "undefined") {
     (window as any).__supabaseClient = client;
     browserClient = client;
-    console.log("[SupabaseClient] Created GLOBAL browser client instance with CUSTOM STORAGE and NO-OP LOCK");
+    console.log("[SupabaseClient] Created GLOBAL client with proper cookie storage + no-op lock");
   } else {
     browserClient = client;
     console.log("[SupabaseClient] Created SERVER-SIDE browser client instance");

@@ -27,10 +27,42 @@ export function Navbar() {
       }
     });
 
+    // Validate session on mount and add recovery logic
+    const checkAndRecoverSession = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+
+      if (error) {
+        console.error('[Navbar] Session error:', error);
+        // Clear any stale session
+        await supabase.auth.signOut();
+        setIdentifier(null);
+        setRole(null);
+        return;
+      }
+
+      if (session?.user) {
+        setIdentifier(session.user.email ?? session.user.phone ?? null);
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", session.user.id)
+          .single();
+        setRole(prof?.role ?? null);
+      }
+    };
+
+    checkAndRecoverSession();
+
     // Listen to auth state changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[Navbar] Auth event:', event);
+
+      if (event === 'TOKEN_REFRESHED') {
+        console.log('[Navbar] Token refreshed successfully');
+      }
+
       if (session?.user) {
         setIdentifier(session.user.email ?? session.user.phone ?? null);
         const { data: prof } = await supabase

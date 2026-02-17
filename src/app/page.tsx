@@ -65,6 +65,23 @@ export default function HomePage() {
 				if (!active) return;
 				if (error) {
 					console.error("[HomePage] Error loading articles:", error);
+
+					// If auth error, try to refresh session and retry
+					if (typeof error === 'string' && (error.includes('JWT') || error.includes('token'))) {
+						console.log('[HomePage] Auth error detected, refreshing session...');
+						const { error: refreshError } = await supabase.auth.refreshSession();
+						if (!refreshError && active) {
+							// Retry after refresh
+							const { articles: retryArts, error: retryError } = await getPublishedArticles({ limit: 4 });
+							if (!retryError && active) {
+								console.log("[HomePage] Loaded articles after refresh:", retryArts?.length);
+								setArticles(retryArts || []);
+								setArticlesLoading(false);
+								return;
+							}
+						}
+					}
+
 					setArticles([]);
 				} else {
 					console.log("[HomePage] Loaded articles:", arts?.length);

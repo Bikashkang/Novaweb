@@ -30,13 +30,26 @@ try {
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
+
   // Enable CORS for frontend
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'https://novahdl.com',
+    'https://www.novahdl.com',
+    process.env.FRONTEND_URL,
+  ].filter(Boolean) as string[];
+
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
   });
-  
+
   await app.listen(process.env.PORT ?? 3001);
 }
 bootstrap();
