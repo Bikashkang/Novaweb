@@ -39,8 +39,10 @@ export default function HomePage() {
 	const [topDoctorsErrorDetails, setTopDoctorsErrorDetails] = useState<any>(null);
 
 	useEffect(() => {
+		console.log("[HomePage] Effect MOUNT");
 		let active = true;
 		const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+			console.log("[HomePage] Auth Event:", event);
 			if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') {
 				loadArticles();
 				loadTopDoctors();
@@ -48,19 +50,28 @@ export default function HomePage() {
 		});
 
 		async function loadArticles() {
-			if (!active) return;
+			console.log("[HomePage] loadArticles called");
+			if (!active) {
+				console.log("[HomePage] loadArticles aborted (inactive)");
+				return;
+			}
 			setArticlesLoading(true);
+			console.log("[HomePage] Loading articles...");
 			try {
+				const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+				console.log("[HomePage] Articles load - Session check:", { hasSession: !!session, error: sessionError });
+
 				const { articles: arts, error } = await getPublishedArticles({ limit: 4 });
 				if (!active) return;
 				if (error) {
-					console.error("Error loading articles:", error);
+					console.error("[HomePage] Error loading articles:", error);
 					setArticles([]);
 				} else {
+					console.log("[HomePage] Loaded articles:", arts?.length);
 					setArticles(arts || []);
 				}
 			} catch (err) {
-				console.error("Exception loading articles:", err);
+				console.error("[HomePage] Exception loading articles:", err);
 				setArticles([]);
 			} finally {
 				if (active) setArticlesLoading(false);
@@ -139,11 +150,15 @@ export default function HomePage() {
 				if (!active) return;
 
 				// Fetch doctor profiles in a single query
+				console.log("[HomePage] Fetching doctor profiles for IDs:", topDoctorIds);
 				const { data: doctors, error: docError } = await supabase
 					.from("profiles")
 					.select("id, full_name, speciality, doctor_slug")
 					.eq("role", "doctor")
 					.in("id", topDoctorIds);
+
+				if (docError) console.error("[HomePage] Error fetching profiles:", docError);
+				else console.log("[HomePage] Fetched profiles:", doctors?.length);
 
 				if (!active) return;
 
@@ -190,6 +205,7 @@ export default function HomePage() {
 		loadArticles();
 		loadTopDoctors();
 		return () => {
+			console.log("[HomePage] Effect UNMOUNT / Cleanup");
 			active = false;
 			subscription.unsubscribe();
 		};

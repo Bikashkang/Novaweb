@@ -36,22 +36,30 @@ export default function MyBookingsPage() {
       if (!active) return;
       setLoading(true);
       setError(null);
-      const { data: userData } = await supabase.auth.getUser();
+      console.log("[BookingsPage] Loading bookings...");
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      console.log("[BookingsPage] User check:", { userId: userData.user?.id, error: userError });
+
       const userId = userData.user?.id;
       if (!userId) {
         // Don't set error immediately, wait a bit or just leave it empty if loading?
         // Actually for bookings we need a user. If no user, show "Not signed in"
         // But if we are in a text of "SIGNED_IN" event, we should find a user.
         // If we just loaded and get no user, effectively we are not signed in.
+        console.warn("[BookingsPage] No user found");
         setError("Not signed in");
         setLoading(false);
         return;
       }
+      console.log("[BookingsPage] Fetching appointments for user:", userId);
       const { data, error } = await supabase
         .from("appointments")
         .select("id, doctor_id, doctor_identifier, appt_date, appt_time, appt_type, status, payment_status, payment_amount, created_at")
         .eq("patient_id", userId)
         .order("created_at", { ascending: false });
+
+      if (error) console.error("[BookingsPage] Error fetching appointments:", error);
+      else console.log("[BookingsPage] Fetched appointments:", data?.length);
 
       if (!active) return;
       if (error) setError(error.message);
@@ -184,8 +192,8 @@ export default function MyBookingsPage() {
                     {r.appt_type === "video" && r.status === "accepted" && r.payment_status === "paid" && (
                       <button
                         className={`text-sm font-medium ${isAppointmentTime(r.appt_date, r.appt_time)
-                            ? "text-green-600 hover:underline"
-                            : "text-slate-400 cursor-not-allowed"
+                          ? "text-green-600 hover:underline"
+                          : "text-slate-400 cursor-not-allowed"
                           }`}
                         onClick={() => {
                           if (isAppointmentTime(r.appt_date, r.appt_time)) {

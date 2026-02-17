@@ -9,7 +9,36 @@ const nextConfig = {
       { protocol: "https", hostname: "*.supabase.co" },
       { protocol: "https", hostname: "ui-avatars.com" }
     ]
-  }
+  },
+  async redirects() {
+    return [
+      {
+        source: '/login',
+        destination: '/auth/sign-in',
+        permanent: true,
+      },
+      {
+        source: '/signin',
+        destination: '/auth/sign-in',
+        permanent: true,
+      },
+      {
+        source: '/auth/login',
+        destination: '/auth/sign-in',
+        permanent: true,
+      },
+      {
+        source: '/signup',
+        destination: '/auth/sign-up',
+        permanent: true,
+      },
+      {
+        source: '/register',
+        destination: '/auth/sign-up',
+        permanent: true,
+      },
+    ]
+  },
 };
 
 module.exports = nextConfig;

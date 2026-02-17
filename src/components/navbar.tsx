@@ -86,8 +86,13 @@ export function Navbar() {
               <Link href="/my/profile" className="hover:underline">Profile</Link>
               <button
                 onClick={async () => {
-                  await supabase.auth.signOut();
-                  globalThis.location.href = "/";
+                  try {
+                    await supabase.auth.signOut();
+                  } catch (error) {
+                    console.error("Error signing out:", error);
+                  } finally {
+                    globalThis.location.href = "/";
+                  }
                 }}
                 className="hover:underline"
               >
