@@ -153,23 +153,13 @@ export async function reliableQuery<T>(
   config: RetryConfig = {}
 ): Promise<{ data: T | null; error: any }> {
   try {
-    // Ensure session is valid before querying
-    await ensureSession();
-
+    // Do NOT call ensureSession() here — it triggers a competing auth lock
+    // acquisition that races with Supabase's internal token refresh, causing
+    // the Navigator LockManager to deadlock. Session is managed globally by AuthProvider.
     const supabase = getSupabaseBrowserClient();
 
     return await executeWithRetry(async () => {
       const result = await queryFn(supabase);
-
-      // If we get an auth error, try refreshing session and retry once
-      if (result.error && result.error.message?.includes("JWT")) {
-        const sessionRefreshed = await ensureSession();
-        if (sessionRefreshed) {
-          // Retry once after session refresh
-          return await queryFn(supabase);
-        }
-      }
-
       return result;
     }, config);
   } catch (error: any) {
