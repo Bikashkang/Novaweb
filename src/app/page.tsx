@@ -55,14 +55,13 @@ export default function HomePage() {
 
 			setArticlesLoading(true);
 			try {
-				// Add timeout to session check
-				const sessionPromise = supabase.auth.getSession();
-				const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Auth check timed out")), 5000));
+				console.log("[HomePage] Checking session...");
+				const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-				try {
-					await Promise.race([sessionPromise, timeoutPromise]);
-				} catch (e) {
-					console.warn("[HomePage] Auth check timed out or failed, proceeding with public access", e);
+				if (sessionError) {
+					console.warn("[HomePage] Session check failed:", sessionError);
+				} else {
+					console.log("[HomePage] Session check complete:", { hasSession: !!session });
 				}
 
 				const { articles: arts, error } = await getPublishedArticles({ limit: 4 });
