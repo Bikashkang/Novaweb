@@ -37,11 +37,13 @@ const nextConfig = {
         destination: '/auth/sign-up',
         permanent: true,
       },
+      {
+        source: '/dashboard',
+        destination: '/',
+        permanent: false,
+      },
     ]
   },
 };
 
 module.exports = nextConfig;
-
-
-

@@ -89,7 +89,7 @@ export default function SignUpPage() {
     }
     
     setLoading(false);
-      router.replace("/dashboard");
+      router.replace("/");
   }
 
   return (

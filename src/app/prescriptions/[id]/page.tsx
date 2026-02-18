@@ -138,7 +138,7 @@ export default function PrescriptionDetailPage() {
           <h1 className="text-xl font-semibold mb-4">Error</h1>
           <p className="text-red-600 mb-4">{error || "Prescription not found"}</p>
           <button
-            onClick={() => router.push("/dashboard")}
+            onClick={() => router.push("/")}
             className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             Go to Dashboard

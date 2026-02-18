@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { IconAmbulance, IconBell, IconHospital, IconInsurance, IconPill, IconStethoscope } from "@/components/icons";
+import { IconAmbulance, IconHospital, IconInsurance, IconPill, IconStethoscope } from "@/components/icons";
 import { DoctorCard } from "@/components/doctor-card";
 import { ArticleCard } from "@/components/blog/article-card";
 import { getPublishedArticles } from "@/lib/blog/articles";
@@ -231,17 +231,9 @@ export default function HomePage() {
 	return (
 		<main className="min-h-screen bg-slate-50">
 			<section className="mx-auto max-w-md md:max-w-2xl lg:max-w-5xl xl:max-w-6xl px-5 md:px-6 lg:px-8 pb-24 pt-6">
-				{/* Top bar */}
-				<div className="mb-5 flex items-center justify-between">
-					<div />
-					<button className="rounded-full p-2 text-slate-700 hover:bg-white/80">
-						<IconBell className="h-6 w-6" />
-					</button>
-				</div>
-
 				{/* Headline */}
 				<h1 className="text-3xl md:text-4xl lg:text-5xl font-bold leading-tight text-slate-900">
-					Find your desire
+					Find your desired
 					<br />
 					health solution
 				</h1>
@@ -278,7 +270,7 @@ export default function HomePage() {
 
 				{/* Top Doctor */}
 				<div className="mt-6 flex items-center justify-between">
-					<h2 className="text-base font-semibold text-slate-900">Top Doctor</h2>
+					<h2 className="text-base font-semibold text-slate-900">Top Doctors</h2>
 					<Link href="/doctors" className="text-xs text-slate-500 hover:underline">See all</Link>
 				</div>
 				{doctorsLoading ? (
@@ -317,7 +309,7 @@ export default function HomePage() {
 
 				{/* Health article */}
 				<div className="mt-6 flex items-center justify-between">
-					<h2 className="text-base font-semibold text-slate-900">Health article</h2>
+					<h2 className="text-base font-semibold text-slate-900">Health articles</h2>
 					<Link href="/blog" className="text-xs text-slate-500 hover:underline">See all</Link>
 				</div>
 				{articlesLoading ? (

@@ -32,17 +32,17 @@ function generateTimeOptions(): string[] {
  */
 function getAvailableTimeSlots(date: string, allTimeOptions: string[]): string[] {
   if (!date) return allTimeOptions;
-  
+
   const today = new Date().toISOString().slice(0, 10);
   const now = new Date();
-  
+
   // If the selected date is today, filter out past time slots
   if (date === today) {
     // Add 15 minutes buffer to current time
     const minTime = new Date(now.getTime() + 15 * 60 * 1000);
     const minHour = minTime.getHours();
     const minMinute = minTime.getMinutes();
-    
+
     // Round up to next 15-minute slot
     let nextSlotMinute: number;
     let nextSlotHour: number;
@@ -59,10 +59,10 @@ function getAvailableTimeSlots(date: string, allTimeOptions: string[]): string[]
       nextSlotMinute = 0;
       nextSlotHour = minHour + 1;
     }
-    
+
     return allTimeOptions.filter((time) => {
       const [hour, minute] = time.split(":").map(Number);
-      
+
       // Compare hours and minutes
       if (hour > nextSlotHour) return true;
       if (hour < nextSlotHour) return false;
@@ -70,7 +70,7 @@ function getAvailableTimeSlots(date: string, allTimeOptions: string[]): string[]
       return minute >= nextSlotMinute;
     });
   }
-  
+
   // For future dates, return all time slots
   return allTimeOptions;
 }
@@ -128,14 +128,14 @@ function DoctorsPageContent() {
 
         const { data, error } = await query.order("full_name", { ascending: true, nullsFirst: false });
         if (!active) return;
-        
+
         if (error) {
           console.error("Error loading doctors:", error);
           setError(error.message);
           setDoctors([]);
         } else {
           setDoctors((data as DoctorProfile[]) ?? []);
-          
+
           // Auto-open booking for selected doctor
           if (selectedDoctorSlug && data && data.length > 0) {
             setOpenFor(selectedDoctorSlug);
@@ -162,22 +162,22 @@ function DoctorsPageContent() {
     // initialize defaults if empty
     const today = new Date().toISOString().slice(0, 10);
     const defaultDate = dateByDoctor[doctorKey] ?? today;
-    
+
     // Get available time slots for the default date
     const availableSlots = getAvailableTimeSlots(defaultDate, allTimeOptions);
     const defaultTime = availableSlots.length > 0 ? availableSlots[0] : "00:00";
-    
+
     setDateByDoctor((prev) => ({ ...prev, [doctorKey]: defaultDate }));
     setTimeByDoctor((prev) => ({ ...prev, [doctorKey]: prev[doctorKey] && getAvailableTimeSlots(defaultDate, allTimeOptions).includes(prev[doctorKey]) ? prev[doctorKey] : defaultTime }));
     setTypeByDoctor((prev) => ({ ...prev, [doctorKey]: prev[doctorKey] ?? "video" }));
   }
-  
+
   function handleDateChange(doctorKey: string, newDate: string) {
     setDateByDoctor((prev) => ({ ...prev, [doctorKey]: newDate }));
-    
+
     // Get available time slots for the new date
     const availableSlots = getAvailableTimeSlots(newDate, allTimeOptions);
-    
+
     // If current time selection is not available, set to first available slot
     const currentTime = timeByDoctor[doctorKey];
     if (!currentTime || !availableSlots.includes(currentTime)) {
@@ -199,14 +199,14 @@ function DoctorsPageContent() {
       alert("Please select both date and time.");
       return;
     }
-    
+
     // Validate that the selected time is in the future
     const availableSlots = getAvailableTimeSlots(date, allTimeOptions);
     if (!availableSlots.includes(time)) {
       alert("Please select a future time slot. Past time slots are not available.");
       return;
     }
-    
+
     const doctorIdentifier = slug;
     const { data: userData } = await supabase.auth.getUser();
     const patientId = userData.user?.id;
@@ -217,12 +217,12 @@ function DoctorsPageContent() {
 
     // Get pricing for the appointment type
     const pricing = await getPricing(type, doctor.id);
-    
+
     if (!pricing || !pricing.amount) {
       alert("Pricing not configured for this appointment type. Please contact support.");
       return;
     }
-    
+
     const { data: appointment, error } = await supabase.from("appointments").insert({
       patient_id: patientId,
       doctor_id: doctor.id,
@@ -234,47 +234,45 @@ function DoctorsPageContent() {
       payment_amount: pricing.amount,
       payment_currency: pricing.currency || "INR"
     }).select().single();
-    if (error) {
-      alert(`Failed to book: ${error.message}`);
+
+    if (error || !appointment) {
+      alert(`Failed to book: ${error?.message ?? "Unknown error"}`);
       return;
     }
+
+    // Fire email notification in the background — don't await it
     const name = doctor.full_name || doctorIdentifier;
-    alert(`Booked ${type === "video" ? "video" : "in-clinic"} appointment with ${name} on ${date} at ${time}. Please complete payment to confirm your appointment.`);
-    setOpenFor(null);
-    
-    // Send email notification
-    if (appointment) {
-      // Fetch user info for notification
-      const [patientAuth, patientProfile, doctorProfile] = await Promise.all([
-        supabase.auth.getUser(),
-        supabase.from("profiles").select("full_name").eq("id", patientId).single(),
-        supabase.from("profiles").select("full_name").eq("id", doctor.id).single(),
-      ]);
-
-      const patientEmail = patientAuth.data.user?.email;
-      const patientName = patientProfile.data?.full_name || "Patient";
-      const doctorName = doctorProfile.data?.full_name || name;
-
-      // Call API - it will fetch doctor email server-side
-      if (patientEmail) {
-        sendAppointmentCreatedNotification({
-          appointmentId: appointment.id,
-          patientId,
-          patientEmail,
-          patientName,
-          doctorId: doctor.id,
-          doctorEmail: "", // API will fetch this server-side
-          doctorName,
-          appointmentDate: date,
-          appointmentTime: time,
-          appointmentType: type,
-        }).catch((error) => {
-          console.error("Failed to send appointment notification:", error);
-        });
+    (async () => {
+      try {
+        const [patientAuth, patientProfile, doctorProfile] = await Promise.all([
+          supabase.auth.getUser(),
+          supabase.from("profiles").select("full_name").eq("id", patientId).single(),
+          supabase.from("profiles").select("full_name").eq("id", doctor.id).single(),
+        ]);
+        const patientEmail = patientAuth.data.user?.email;
+        const patientName = patientProfile.data?.full_name || "Patient";
+        const doctorName = doctorProfile.data?.full_name || name;
+        if (patientEmail) {
+          await sendAppointmentCreatedNotification({
+            appointmentId: appointment.id,
+            patientId,
+            patientEmail,
+            patientName,
+            doctorId: doctor.id,
+            doctorEmail: "",
+            doctorName,
+            appointmentDate: date,
+            appointmentTime: time,
+            appointmentType: type,
+          });
+        }
+      } catch (e) {
+        console.error("Failed to send appointment notification:", e);
       }
+    })();
 
-      router.push(`/appointments/${appointment.id}/payment`);
-    }
+    // Redirect immediately to payment page
+    router.push(`/appointments/${appointment.id}/payment`);
   }
 
   return (
@@ -297,7 +295,7 @@ function DoctorsPageContent() {
             const typeVal = slug ? (typeByDoctor[slug] ?? "video") : "video";
             const disabled = !slug;
             const availableTimeSlots = dateVal ? getAvailableTimeSlots(dateVal, allTimeOptions) : allTimeOptions;
-            
+
             return (
               <div key={slug || doc.id} className="rounded border p-4 flex flex-col gap-3">
                 <div className="flex items-start justify-between gap-3">
@@ -414,6 +412,6 @@ export default function DoctorsPage() {
     </Suspense>
   );
 }
- 
+
 
 

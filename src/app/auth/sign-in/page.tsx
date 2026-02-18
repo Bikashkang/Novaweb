@@ -21,7 +21,7 @@ export default function SignInPage() {
       setError(error.message);
     } else {
       // Hard redirect so middleware can read fresh auth cookies and stale JS chunks are cleared
-      window.location.href = "/dashboard";
+      window.location.href = "/";
     }
   }
 

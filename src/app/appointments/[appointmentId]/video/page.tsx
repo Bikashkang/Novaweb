@@ -263,7 +263,7 @@ export default function VideoCallPage() {
   };
 
   const handleCallEnd = () => {
-    router.push("/dashboard");
+    router.push("/");
   };
 
   if (loading) {
@@ -283,7 +283,7 @@ export default function VideoCallPage() {
           <h1 className="text-xl font-semibold mb-4">Cannot Join Call</h1>
           <p className="text-red-600 mb-4">{error || "Unknown error"}</p>
           <button
-            onClick={() => router.push("/dashboard")}
+            onClick={() => router.push("/")}
             className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             Go to Dashboard
