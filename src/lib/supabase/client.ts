@@ -8,24 +8,18 @@ const properCookieStorage = {
     if (typeof document === 'undefined') return null;
     const match = document.cookie.match(new RegExp('(^| )' + key + '=([^;]+)'));
     if (match) {
-      const value = decodeURIComponent(match[2]);
-      console.log(`[CookieStorage] GET ${key}: FOUND`);
-      return value; // Already JSON string from Supabase
+      return decodeURIComponent(match[2]);
     }
-    console.log(`[CookieStorage] GET ${key}: NOT FOUND`);
     return null;
   },
   setItem: (key: string, value: string) => {
     if (typeof document === 'undefined') return;
-    console.log(`[CookieStorage] SET ${key}`);
-    // value is already JSON-stringified by Supabase
     const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
-    document.cookie = `${key}=${encodeURIComponent(value)}; path=/; expires=${expires}; SameSite=Lax; Secure`;
+    document.cookie = `${key}=${encodeURIComponent(value)}; path=/; expires=${expires}; SameSite=Lax`;
   },
   removeItem: (key: string) => {
     if (typeof document === 'undefined') return;
-    console.log(`[CookieStorage] REMOVE ${key}`);
-    document.cookie = `${key}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax; Secure`;
+    document.cookie = `${key}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax`;
   }
 };
 
@@ -54,10 +48,9 @@ export function getSupabaseBrowserClient(): SupabaseClient {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
-      detectSessionInUrl: true,
+      detectSessionInUrl: false, // Disable to prevent hanging on pages without auth codes in URL
       storage: properCookieStorage,
       lock: noOpLock,
-      flowType: 'pkce', // Use PKCE flow for better security
     }
   });
 

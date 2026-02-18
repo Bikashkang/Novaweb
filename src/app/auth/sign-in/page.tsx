@@ -20,7 +20,8 @@ export default function SignInPage() {
     if (error) {
       setError(error.message);
     } else {
-      router.replace("/dashboard");
+      // Hard redirect so middleware can read fresh auth cookies and stale JS chunks are cleared
+      window.location.href = "/dashboard";
     }
   }
 
@@ -32,12 +33,12 @@ export default function SignInPage() {
         <div className="space-y-1">
           <label className="text-sm" htmlFor="email">Email</label>
           <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                 className="w-full rounded border px-3 py-2 bg-white text-slate-900" required />
+            className="w-full rounded border px-3 py-2 bg-white text-slate-900" required />
         </div>
         <div className="space-y-1">
           <label className="text-sm" htmlFor="password">Password</label>
           <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-                 className="w-full rounded border px-3 py-2 bg-white text-slate-900" required />
+            className="w-full rounded border px-3 py-2 bg-white text-slate-900" required />
         </div>
         <button disabled={loading} className="w-full rounded bg-black text-white py-2 disabled:opacity-50">
           {loading ? "Signing in..." : "Sign in"}

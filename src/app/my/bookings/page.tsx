@@ -31,26 +31,39 @@ export default function MyBookingsPage() {
     let active = true;
     let realtimeSubscription: { unsubscribe: () => void } | null = null;
     let authSubscription: { unsubscribe: () => void } | null = null;
+    let loadTimeout: ReturnType<typeof setTimeout> | null = null;
 
     async function load() {
       if (!active) return;
       setLoading(true);
       setError(null);
       console.log("[BookingsPage] Loading bookings...");
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      console.log("[BookingsPage] User check:", { userId: userData.user?.id, error: userError });
 
-      const userId = userData.user?.id;
+      // Safety timeout - never stay stuck loading forever
+      if (loadTimeout) clearTimeout(loadTimeout);
+      loadTimeout = setTimeout(() => {
+        if (active) {
+          console.warn("[BookingsPage] Load timed out after 10s");
+          setLoading(false);
+          setError("Loading timed out. Please refresh the page.");
+        }
+      }, 10000);
+
+      // Use getSession() - reads from local cookie storage, no network round-trip
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      console.log("[BookingsPage] Session check:", { userId: sessionData.session?.user?.id, error: sessionError });
+
+      const userId = sessionData.session?.user?.id;
       if (!userId) {
-        // Don't set error immediately, wait a bit or just leave it empty if loading?
-        // Actually for bookings we need a user. If no user, show "Not signed in"
-        // But if we are in a text of "SIGNED_IN" event, we should find a user.
-        // If we just loaded and get no user, effectively we are not signed in.
-        console.warn("[BookingsPage] No user found");
-        setError("Not signed in");
-        setLoading(false);
+        console.warn("[BookingsPage] No session found");
+        if (active) {
+          if (loadTimeout) clearTimeout(loadTimeout);
+          setError("Not signed in");
+          setLoading(false);
+        }
         return;
       }
+
       console.log("[BookingsPage] Fetching appointments for user:", userId);
       const { data, error } = await supabase
         .from("appointments")
@@ -62,6 +75,7 @@ export default function MyBookingsPage() {
       else console.log("[BookingsPage] Fetched appointments:", data?.length);
 
       if (!active) return;
+      if (loadTimeout) clearTimeout(loadTimeout);
       if (error) setError(error.message);
       setRows((data as Row[]) ?? []);
       setLoading(false);
@@ -87,9 +101,10 @@ export default function MyBookingsPage() {
         .subscribe();
     }
 
-    // Set up auth listener
+    // Set up auth listener - only reload on sign-in/out, not token refresh
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'SIGNED_OUT') {
+      if (!active) return;
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
         load();
       }
     });
@@ -100,6 +115,7 @@ export default function MyBookingsPage() {
 
     return () => {
       active = false;
+      if (loadTimeout) clearTimeout(loadTimeout);
       if (realtimeSubscription) realtimeSubscription.unsubscribe();
       if (authSubscription) authSubscription.unsubscribe();
     };
