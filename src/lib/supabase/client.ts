@@ -3,10 +3,6 @@ import { SupabaseClient } from "@supabase/supabase-js";
 
 let client: SupabaseClient | undefined;
 
-const noOpLock = async <R>(name: string, acquireTimeout: number, fn: () => Promise<R>): Promise<R> => {
-  return await fn();
-};
-
 export function getSupabaseBrowserClient() {
   if (typeof window === "undefined") {
     return createBrowserClient(
@@ -19,12 +15,7 @@ export function getSupabaseBrowserClient() {
 
   client = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      auth: {
-        lock: noOpLock,
-      },
-    }
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
   return client;

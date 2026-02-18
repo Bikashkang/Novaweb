@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -29,90 +29,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [role, setRole] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
+    // Track the last user ID we fetched a profile for to avoid redundant fetches
+    const lastProfileFetchId = useRef<string | null>(null);
+
     useEffect(() => {
         let mounted = true;
 
-        async function getInitialSession() {
-            try {
-                console.log("AuthProvider: [DEBUG] Starting getInitialSession");
+        // Use onAuthStateChange as the SINGLE source of truth.
+        // It fires INITIAL_SESSION immediately on mount with the current session (or null),
+        // eliminating the race condition between getSession() and onAuthStateChange().
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+            if (!mounted) return;
 
-                // Add a local timeout for the initial session fetch
-                const sessionPromise = supabase.auth.getSession();
-                const timeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error("Supabase getSession timeout")), 10000)
-                );
+            console.log("AuthProvider: [DEBUG] Auth event:", event, "| User:", currentSession?.user?.id ?? "none");
 
-                const { data: { session: initialSession }, error } = await Promise.race([
-                    sessionPromise,
-                    timeoutPromise
-                ]) as any;
+            setSession(currentSession);
+            setUser(currentSession?.user ?? null);
 
-                console.log("AuthProvider: [DEBUG] getSession finished, session exists:", !!initialSession);
+            if (currentSession?.user) {
+                const userId = currentSession.user.id;
 
-                if (error) {
-                    console.error("AuthProvider: [DEBUG] getSession error:", error);
-                    throw error;
-                }
-
-                if (mounted) {
-                    setSession(initialSession);
-                    setUser(initialSession?.user ?? null);
-
-                    if (initialSession?.user) {
-                        console.log("AuthProvider: [DEBUG] Fetching profile for user:", initialSession.user.id);
+                // Only fetch profile if we haven't already fetched for this user
+                if (lastProfileFetchId.current !== userId) {
+                    lastProfileFetchId.current = userId;
+                    try {
                         const { data: profile, error: profileError } = await supabase
                             .from("profiles")
                             .select("role")
-                            .eq("id", initialSession.user.id)
+                            .eq("id", userId)
                             .single();
 
-                        if (profileError) {
-                            console.error("AuthProvider: [DEBUG] Profile fetch error:", profileError);
-                        } else {
-                            console.log("AuthProvider: [DEBUG] Profile fetched, role:", profile?.role);
-                            setRole(profile?.role ?? null);
+                        if (mounted) {
+                            if (profileError) {
+                                console.error("AuthProvider: Profile fetch error:", profileError.message);
+                                setRole(null);
+                            } else {
+                                setRole(profile?.role ?? null);
+                            }
                         }
+                    } catch (err) {
+                        console.error("AuthProvider: Profile fetch exception:", err);
+                        if (mounted) setRole(null);
                     }
                 }
-            } catch (err) {
-                console.error("AuthProvider: Error getting initial session:", err);
-            } finally {
-                if (mounted) {
-                    console.log("AuthProvider: [DEBUG] Finishing getInitialSession, setting loading=false");
-                    setLoading(false);
-                }
+            } else {
+                lastProfileFetchId.current = null;
+                setRole(null);
             }
-        }
 
-        getInitialSession();
-
-        console.log("AuthProvider: [DEBUG] Setting up onAuthStateChange listener");
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-            console.log("AuthProvider: [DEBUG] Auth State Change EVENT:", event, "Session exists:", !!currentSession);
-
+            // Only set loading=false after the INITIAL_SESSION event
+            // (or any subsequent event). This ensures we don't show content
+            // before we know the auth state.
             if (mounted) {
-                setSession(currentSession);
-                setUser(currentSession?.user ?? null);
-
-                if (currentSession?.user) {
-                    console.log("AuthProvider: [DEBUG] Fetching profile on state change for:", currentSession.user.id);
-                    const { data: profile, error: profileError } = await supabase
-                        .from("profiles")
-                        .select("role")
-                        .eq("id", currentSession.user.id)
-                        .single();
-
-                    if (profileError) {
-                        console.error("AuthProvider: [DEBUG] Profile fetch error (on change):", profileError);
-                    } else {
-                        console.log("AuthProvider: [DEBUG] Profile fetched (on change), role:", profile?.role);
-                        setRole(profile?.role ?? null);
-                    }
-                } else {
-                    setRole(null);
-                }
-
-                console.log("AuthProvider: [DEBUG] Setting loading=false (on auth state change)");
                 setLoading(false);
             }
         });

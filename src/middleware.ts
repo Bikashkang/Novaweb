@@ -31,23 +31,8 @@ export async function middleware(request: NextRequest) {
         }
     )
 
-    const allCookies = request.cookies.getAll()
-    const cookieSize = JSON.stringify(allCookies).length
-    console.log(`Middleware: [DEBUG] Path: ${request.nextUrl.pathname}, Cookies: ${allCookies.length}, Approx Size: ${cookieSize} bytes`)
-
-    if (cookieSize > 8000) {
-        console.warn("Middleware: [WARN] High cookie size detected! This may cause header issues.")
-    }
-
-    // Use a timeout for getSession to prevent middleware hangs
-    try {
-        await Promise.race([
-            supabase.auth.getSession(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error("Middleware Session Timeout")), 5000))
-        ])
-    } catch (e) {
-        console.warn("Middleware: [WARN] Session check timed out or failed:", e)
-    }
+    // Required to refresh the session cookie and keep it alive
+    await supabase.auth.getSession()
 
     return response
 }
@@ -59,7 +44,6 @@ export const config = {
          * - _next/static (static files)
          * - _next/image (image optimization files)
          * - favicon.ico (favicon file)
-         * Feel free to modify this pattern to include more paths.
          */
         '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
     ],

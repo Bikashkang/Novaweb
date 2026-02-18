@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconAmbulance, IconHospital, IconInsurance, IconPill, IconStethoscope } from "@/components/icons";
 import { DoctorCard } from "@/components/doctor-card";
@@ -41,15 +41,19 @@ export default function HomePage() {
 	const [topDoctors, setTopDoctors] = useState<TopDoctor[]>([]);
 	const [doctorsLoading, setDoctorsLoading] = useState(true);
 	const [topDoctorsErrorDetails, setTopDoctorsErrorDetails] = useState<any>(null);
+	// Prevent duplicate fetches: only load data once per mount when auth resolves
+	const dataLoadedRef = useRef(false);
 
 	useEffect(() => {
-		console.log("[HomePage] Effect MOUNT (AuthLoading:", authLoading, ")");
+		// Only run once when authLoading transitions to false
+		if (authLoading || dataLoadedRef.current) return;
+		dataLoadedRef.current = true;
+
+		console.log("[HomePage] Auth resolved, loading data...");
 		let active = true;
 
-		if (!authLoading) {
-			loadArticles();
-			loadTopDoctors();
-		}
+		loadArticles();
+		loadTopDoctors();
 
 		async function loadArticles() {
 			console.log("[HomePage] loadArticles: START");
@@ -200,13 +204,10 @@ export default function HomePage() {
 			}
 		}
 
-		loadArticles();
-		loadTopDoctors();
 		return () => {
-			console.log("[HomePage] Effect UNMOUNT / Cleanup");
 			active = false;
 		};
-	}, [supabase, authLoading]);
+	}, [authLoading]);
 
 	return (
 		<main className="min-h-screen bg-slate-50">
