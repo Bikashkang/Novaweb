@@ -5,7 +5,7 @@ import { useAuth } from "@/components/auth-provider";
 
 export function useChatUnread() {
     const supabase = getSupabaseBrowserClient();
-    const { user } = useAuth();
+    const { user, loading: authLoading } = useAuth();
     const [unreadCount, setUnreadCount] = useState(0);
 
     const userId = user?.id ?? null;
@@ -38,18 +38,19 @@ export function useChatUnread() {
         }
     }, [supabase]);
 
-    // Initial load when userId available
+    // Initial load when userId available and auth has resolved
     useEffect(() => {
+        if (authLoading) return;
         if (userId) {
             fetchUnreadSimple(userId);
         } else {
             setUnreadCount(0);
         }
-    }, [userId, fetchUnreadSimple]);
+    }, [userId, authLoading, fetchUnreadSimple]);
 
     // Realtime: listen for new messages and read_at updates
     useEffect(() => {
-        if (!userId) return;
+        if (authLoading || !userId) return;
 
         const channel = supabase
             .channel(`chat-unread:${userId}`)

@@ -58,7 +58,7 @@ function getNotifLink(notif: Notification): string | null {
 
 export function NotificationBell() {
     const supabase = getSupabaseBrowserClient();
-    const { user } = useAuth();
+    const { user, loading: authLoading } = useAuth();
     const [open, setOpen] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(false);
@@ -90,18 +90,19 @@ export function NotificationBell() {
         }
     }, [supabase]);
 
-    // Initial load when userId is available
+    // Initial load when userId is available and auth has resolved
     useEffect(() => {
+        if (authLoading) return;
         if (userId) {
             loadNotifications(userId);
         } else {
             setNotifications([]);
         }
-    }, [userId, loadNotifications]);
+    }, [userId, authLoading, loadNotifications]);
 
     // Realtime subscription for new notifications
     useEffect(() => {
-        if (!userId) return;
+        if (authLoading || !userId) return;
 
         const channel = supabase
             .channel(`notifications:${userId}`)
