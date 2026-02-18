@@ -110,7 +110,7 @@ export default function ResetAuthPage() {
                     ))}
                 </div>
                 <p className="mt-6 text-slate-500 text-sm text-center">
-                    This utility will clear all local data, cookies, and service workers to fix the "data hanging" issue.
+                    This utility will clear all local data, cookies, and service workers to fix the &quot;data hanging&quot; issue.
                 </p>
                 <button
                     onClick={() => window.location.reload()}
