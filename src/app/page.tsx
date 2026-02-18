@@ -11,6 +11,7 @@ import type { BlogArticleWithAuthor } from "@/lib/blog/articles";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { SearchBar } from "@/components/search/search-bar";
 import { useAuth } from "@/components/auth-provider";
+import { reliableQuery } from "@/lib/supabase/reliable-client";
 
 const categories = [
 	{ icon: IconStethoscope, label: "Doctor", href: "/doctors" },
@@ -51,14 +52,23 @@ export default function HomePage() {
 		}
 
 		async function loadArticles() {
-			console.log("[HomePage] loadArticles called");
-			if (!active) return;
+			console.log("[HomePage] loadArticles: START");
+			if (!active) {
+				console.log("[HomePage] loadArticles: SKIPPED (not active)");
+				return;
+			}
 
 			setArticlesLoading(true);
 			try {
+				console.log("[HomePage] loadArticles: Calling getPublishedArticles (via reliableQuery)...");
+				// Provide a timeout for the query
 				const { articles: arts, error } = await getPublishedArticles({ limit: 4 });
+				console.log("[HomePage] loadArticles: getPublishedArticles DONE. Articles count:", arts?.length, "Error:", error);
 
-				if (!active) return;
+				if (!active) {
+					console.log("[HomePage] loadArticles: SKIPPED completion (not active)");
+					return;
+				}
 
 				if (error) {
 					console.error("[HomePage] Error loading articles:", error);
@@ -70,26 +80,38 @@ export default function HomePage() {
 				console.error("[HomePage] Exception loading articles:", err);
 				setArticles([]);
 			} finally {
-				if (active) setArticlesLoading(false);
+				if (active) {
+					console.log("[HomePage] loadArticles: FINISHED (setting loading=false)");
+					setArticlesLoading(false);
+				}
 			}
 		}
 
 		async function loadTopDoctors() {
-			if (!active) return;
+			console.log("[HomePage] loadTopDoctors: START");
+			if (!active) {
+				console.log("[HomePage] loadTopDoctors: SKIPPED (not active)");
+				return;
+			}
 			setDoctorsLoading(true);
 			setTopDoctorsErrorDetails(null);
 
 			try {
+				console.log("[HomePage] loadTopDoctors: Fetching top doctor IDs...");
 				// Try to get top doctors by appointment count first
 				let topDoctorIds: string[] = [];
 
 				try {
-					const { data: topDoctorsData, error: topDoctorsError } = await supabase
-						.from("appointments")
-						.select("doctor_id")
-						.eq("status", "accepted")
-						.not("doctor_id", "is", null)
-						.limit(1000);
+					console.log("[HomePage] loadTopDoctors: Querying appointments...");
+					const { data: topDoctorsData, error: topDoctorsError } = await reliableQuery<{ doctor_id: string }[]>(
+						(client) => client
+							.from("appointments")
+							.select("doctor_id")
+							.eq("status", "accepted")
+							.not("doctor_id", "is", null)
+							.limit(1000) as any,
+						{ timeout: 15000 } // 15 second timeout for this count query
+					);
 
 					if (active && !topDoctorsError && topDoctorsData) {
 						const doctorCounts: Record<string, number> = {};
@@ -131,11 +153,15 @@ export default function HomePage() {
 
 				if (!active) return;
 
-				const { data: doctors, error: docError } = await supabase
-					.from("profiles")
-					.select("id, full_name, speciality, doctor_slug")
-					.eq("role", "doctor")
-					.in("id", topDoctorIds);
+				console.log("[HomePage] loadTopDoctors: Fetching profiles for top doctor IDs:", topDoctorIds);
+				const { data: doctors, error: docError } = await reliableQuery<any[]>(
+					(client) => client
+						.from("profiles")
+						.select("id, full_name, speciality, doctor_slug")
+						.eq("role", "doctor")
+						.in("id", topDoctorIds) as any,
+					{ timeout: 10000 }
+				);
 
 				if (docError) throw docError;
 
@@ -157,6 +183,7 @@ export default function HomePage() {
 							};
 						})
 						.filter((d): d is TopDoctor => d !== null);
+					console.log("[HomePage] loadTopDoctors: FINISHED. Count:", mapped.length);
 					setTopDoctors(mapped);
 				}
 			} catch (err) {
@@ -166,7 +193,10 @@ export default function HomePage() {
 					setTopDoctors([]);
 				}
 			} finally {
-				if (active) setDoctorsLoading(false);
+				if (active) {
+					console.log("[HomePage] loadTopDoctors: DONE (setting loading=false)");
+					setDoctorsLoading(false);
+				}
 			}
 		}
 

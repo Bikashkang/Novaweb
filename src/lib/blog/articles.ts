@@ -177,7 +177,9 @@ export async function getPublishedArticles(
   }
 
   // Fetch articles first
+  console.log("getPublishedArticles: Executing blog_articles query...");
   const { data: articles, error } = await query;
+  console.log("getPublishedArticles: blog_articles query result count:", articles?.length, "Error:", error);
 
   if (error) {
     return { articles: [], error: error.message };
@@ -189,16 +191,19 @@ export async function getPublishedArticles(
 
   // Get unique author IDs
   const authorIds = [...new Set(articles.map((a: BlogArticle) => a.author_id))];
+  console.log("getPublishedArticles: Found author IDs:", authorIds);
 
   // Fetch all author profiles in a single query (fixes N+1 problem)
   // If this fails due to RLS, articles will still be returned without author info
   let profileMap = new Map();
   if (authorIds.length > 0) {
     try {
+      console.log("getPublishedArticles: Fetching author profiles...");
       const { data: profiles, error: profileError } = await supabase
         .from("profiles")
         .select("id, full_name, speciality")
         .in("id", authorIds);
+      console.log("getPublishedArticles: Author profiles fetched. Count:", profiles?.length, "Error:", profileError);
 
       if (!profileError && profiles) {
         profileMap = new Map(
@@ -222,6 +227,7 @@ export async function getPublishedArticles(
     };
   });
 
+  console.log("getPublishedArticles: Successfully mapped all articles and authors.");
   return { articles: articlesWithAuthor, error: null };
 }
 

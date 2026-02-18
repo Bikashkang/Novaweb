@@ -34,50 +34,85 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         async function getInitialSession() {
             try {
-                const { data: { session: initialSession }, error } = await supabase.auth.getSession();
+                console.log("AuthProvider: [DEBUG] Starting getInitialSession");
 
-                if (error) throw error;
+                // Add a local timeout for the initial session fetch
+                const sessionPromise = supabase.auth.getSession();
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error("Supabase getSession timeout")), 10000)
+                );
+
+                const { data: { session: initialSession }, error } = await Promise.race([
+                    sessionPromise,
+                    timeoutPromise
+                ]) as any;
+
+                console.log("AuthProvider: [DEBUG] getSession finished, session exists:", !!initialSession);
+
+                if (error) {
+                    console.error("AuthProvider: [DEBUG] getSession error:", error);
+                    throw error;
+                }
 
                 if (mounted) {
                     setSession(initialSession);
                     setUser(initialSession?.user ?? null);
 
                     if (initialSession?.user) {
-                        const { data: profile } = await supabase
+                        console.log("AuthProvider: [DEBUG] Fetching profile for user:", initialSession.user.id);
+                        const { data: profile, error: profileError } = await supabase
                             .from("profiles")
                             .select("role")
                             .eq("id", initialSession.user.id)
                             .single();
-                        setRole(profile?.role ?? null);
+
+                        if (profileError) {
+                            console.error("AuthProvider: [DEBUG] Profile fetch error:", profileError);
+                        } else {
+                            console.log("AuthProvider: [DEBUG] Profile fetched, role:", profile?.role);
+                            setRole(profile?.role ?? null);
+                        }
                     }
                 }
             } catch (err) {
                 console.error("AuthProvider: Error getting initial session:", err);
             } finally {
-                if (mounted) setLoading(false);
+                if (mounted) {
+                    console.log("AuthProvider: [DEBUG] Finishing getInitialSession, setting loading=false");
+                    setLoading(false);
+                }
             }
         }
 
         getInitialSession();
 
+        console.log("AuthProvider: [DEBUG] Setting up onAuthStateChange listener");
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-            console.log("AuthProvider: Auth State Change:", event);
+            console.log("AuthProvider: [DEBUG] Auth State Change EVENT:", event, "Session exists:", !!currentSession);
 
             if (mounted) {
                 setSession(currentSession);
                 setUser(currentSession?.user ?? null);
 
                 if (currentSession?.user) {
-                    const { data: profile } = await supabase
+                    console.log("AuthProvider: [DEBUG] Fetching profile on state change for:", currentSession.user.id);
+                    const { data: profile, error: profileError } = await supabase
                         .from("profiles")
                         .select("role")
                         .eq("id", currentSession.user.id)
                         .single();
-                    setRole(profile?.role ?? null);
+
+                    if (profileError) {
+                        console.error("AuthProvider: [DEBUG] Profile fetch error (on change):", profileError);
+                    } else {
+                        console.log("AuthProvider: [DEBUG] Profile fetched (on change), role:", profile?.role);
+                        setRole(profile?.role ?? null);
+                    }
                 } else {
                     setRole(null);
                 }
 
+                console.log("AuthProvider: [DEBUG] Setting loading=false (on auth state change)");
                 setLoading(false);
             }
         });
