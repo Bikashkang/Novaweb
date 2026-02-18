@@ -32,6 +32,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Track the last user ID we fetched a profile for to avoid redundant fetches
     const lastProfileFetchId = useRef<string | null>(null);
 
+    // Safety net: if onAuthStateChange never fires (e.g. hung token refresh or
+    // RLS deadlock), unblock the UI after 8 seconds so spinners never hang forever.
+    useEffect(() => {
+        let mounted = true;
+        const timeout = setTimeout(() => {
+            if (mounted) {
+                setLoading((prev) => {
+                    if (prev) {
+                        console.warn("AuthProvider: auth timeout after 8s — forcing loading=false to unblock UI");
+                    }
+                    return false;
+                });
+            }
+        }, 8000);
+        return () => {
+            mounted = false;
+            clearTimeout(timeout);
+        };
+    }, []);
+
     useEffect(() => {
         let mounted = true;
 
@@ -53,11 +73,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 if (lastProfileFetchId.current !== userId) {
                     lastProfileFetchId.current = userId;
                     try {
-                        const { data: profile, error: profileError } = await supabase
+                        // Race the profile fetch against a 5s timeout so a hung
+                        // RLS query can never keep loading=true indefinitely.
+                        const profilePromise = supabase
                             .from("profiles")
                             .select("role")
                             .eq("id", userId)
                             .single();
+                        const timeoutPromise = new Promise<{ data: null; error: Error }>((resolve) =>
+                            setTimeout(() => resolve({ data: null, error: new Error("Profile fetch timeout") }), 5000)
+                        );
+                        const { data: profile, error: profileError } = await Promise.race([profilePromise, timeoutPromise]);
 
                         if (mounted) {
                             if (profileError) {
