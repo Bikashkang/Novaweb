@@ -43,13 +43,12 @@ export default function HomePage() {
 
 	useEffect(() => {
 		console.log("[HomePage] Effect MOUNT (AuthLoading:", authLoading, ")");
+		let active = true;
 
 		if (!authLoading) {
 			loadArticles();
 			loadTopDoctors();
 		}
-
-		let active = true;
 
 		async function loadArticles() {
 			console.log("[HomePage] loadArticles called");
