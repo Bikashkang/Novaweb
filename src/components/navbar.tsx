@@ -6,17 +6,18 @@ import { usePathname } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { NotificationBell } from "@/components/notification-bell";
 import { useChatUnread } from "@/hooks/use-chat-unread";
+import { useAuth } from "@/components/auth-provider";
 
 export function Navbar() {
-  const supabase = getSupabaseBrowserClient();
+  const { user, role, signOut, loading: authLoading } = useAuth();
   const pathname = usePathname();
-  const [identifier, setIdentifier] = useState<string | null>(null);
-  const [role, setRole] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const { unreadCount: chatUnread, clearUnread: clearChatUnread } = useChatUnread();
+
+  const identifier = user?.email ?? user?.phone ?? null;
 
   // Scroll shadow effect
   useEffect(() => {
@@ -25,60 +26,10 @@ export function Navbar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Auth state
-  useEffect(() => {
-    const loadSession = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error) {
-        await supabase.auth.signOut();
-        setIdentifier(null);
-        setRole(null);
-        return;
-      }
-      if (session?.user) {
-        setIdentifier(session.user.email ?? session.user.phone ?? null);
-        const { data: prof } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", session.user.id)
-          .single();
-        setRole(prof?.role ?? null);
-      } else {
-        setIdentifier(null);
-        setRole(null);
-      }
-    };
-
-    loadSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        setIdentifier(session.user.email ?? session.user.phone ?? null);
-        const { data: prof } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", session.user.id)
-          .single();
-        setRole(prof?.role ?? null);
-      } else {
-        setIdentifier(null);
-        setRole(null);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [supabase]);
-
   const handleSignOut = async () => {
     setMenuOpen(false);
     setUserMenuOpen(false);
-    try {
-      await supabase.auth.signOut();
-    } catch (e) {
-      console.error("Sign out error:", e);
-    } finally {
-      window.location.href = "/";
-    }
+    await signOut();
   };
 
   // Close mobile menu on route change

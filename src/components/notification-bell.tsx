@@ -1,7 +1,9 @@
 "use client";
+
 import { useEffect, useRef, useState, useCallback } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import Link from "next/link";
+import { useAuth } from "@/components/auth-provider";
 
 type Notification = {
     id: string;
@@ -56,12 +58,13 @@ function getNotifLink(notif: Notification): string | null {
 
 export function NotificationBell() {
     const supabase = getSupabaseBrowserClient();
+    const { user } = useAuth();
     const [open, setOpen] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(false);
-    const [userId, setUserId] = useState<string | null>(null);
     const panelRef = useRef<HTMLDivElement>(null);
 
+    const userId = user?.id ?? null;
     const unreadCount = notifications.filter((n) => !n.read).length;
 
     // Load notifications
@@ -87,26 +90,14 @@ export function NotificationBell() {
         }
     }, [supabase]);
 
-    // Get current user
+    // Initial load when userId is available
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session?.user) {
-                setUserId(session.user.id);
-                loadNotifications(session.user.id);
-            }
-        });
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (session?.user) {
-                setUserId(session.user.id);
-                loadNotifications(session.user.id);
-            } else {
-                setUserId(null);
-                setNotifications([]);
-            }
-        });
-        return () => subscription.unsubscribe();
-    }, [supabase, loadNotifications]);
+        if (userId) {
+            loadNotifications(userId);
+        } else {
+            setNotifications([]);
+        }
+    }, [userId, loadNotifications]);
 
     // Realtime subscription for new notifications
     useEffect(() => {

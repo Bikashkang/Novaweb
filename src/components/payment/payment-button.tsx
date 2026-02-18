@@ -82,7 +82,7 @@ export function PaymentButton({
 
             // Clear loading state before calling success callback
             setLoading(false);
-            
+
             // Call success callback - let the parent component handle UI updates
             onPaymentSuccess?.();
           } catch (error: any) {

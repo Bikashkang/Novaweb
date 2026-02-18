@@ -54,7 +54,7 @@ export class PaymentsService {
 
     try {
       this.logger.log(`Creating order for appointment ${dto.appointmentId} with amount ${dto.amount}`);
-      
+
       // Verify appointment exists and belongs to user
       const { data: appointment, error: apptError } = await this.supabase
         .from('appointments')
@@ -79,15 +79,15 @@ export class PaymentsService {
 
       // Use provided amount or existing payment_amount
       const amount = dto.amount || appointment.payment_amount || 0;
-      
+
       // Razorpay minimum: ₹1.00 (100 paisa) for INR
       const MINIMUM_AMOUNT = 100; // 100 paisa = ₹1.00
-      
+
       if (amount <= 0) {
         this.logger.error(`Invalid amount: ${amount} for appointment ${dto.appointmentId}`);
         throw new BadRequestException(`Invalid payment amount: ${amount}`);
       }
-      
+
       if (amount < MINIMUM_AMOUNT && (dto.currency || 'INR') === 'INR') {
         this.logger.error(`Amount ${amount} below Razorpay minimum ${MINIMUM_AMOUNT} for appointment ${dto.appointmentId}`);
         throw new BadRequestException(
@@ -122,18 +122,18 @@ export class PaymentsService {
       if (error instanceof BadRequestException) {
         throw error;
       }
-      
+
       // Log the full error for debugging
       this.logger.error('Failed to create Razorpay order:', error);
-      
+
       // Extract meaningful error message
       const errorMessage = error?.message || error?.error?.message || error?.toString() || 'Unknown error';
       const razorpayError = error?.error?.description || error?.error?.reason || '';
-      
+
       if (razorpayError) {
         throw new InternalServerErrorException(`Failed to create order: ${razorpayError}`);
       }
-      
+
       throw new InternalServerErrorException(`Failed to create order: ${errorMessage}`);
     }
   }
