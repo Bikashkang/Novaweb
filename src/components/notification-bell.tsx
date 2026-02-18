@@ -67,14 +67,24 @@ export function NotificationBell() {
     // Load notifications
     const loadNotifications = useCallback(async (uid: string) => {
         setLoading(true);
-        const { data, error } = await supabase
-            .from("notifications")
-            .select("*")
-            .eq("user_id", uid)
-            .order("created_at", { ascending: false })
-            .limit(30);
-        if (!error && data) setNotifications(data as Notification[]);
-        setLoading(false);
+        try {
+            const { data, error } = await supabase
+                .from("notifications")
+                .select("*")
+                .eq("user_id", uid)
+                .order("created_at", { ascending: false })
+                .limit(30);
+
+            if (error) {
+                console.error("Error loading notifications:", error);
+            } else if (data) {
+                setNotifications(data as Notification[]);
+            }
+        } catch (err) {
+            console.error("Exception loading notifications:", err);
+        } finally {
+            setLoading(false);
+        }
     }, [supabase]);
 
     // Get current user

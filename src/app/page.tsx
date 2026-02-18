@@ -51,40 +51,39 @@ export default function HomePage() {
 
 		async function loadArticles() {
 			console.log("[HomePage] loadArticles called");
-			if (!active) {
-				console.log("[HomePage] loadArticles aborted (inactive)");
-				return;
-			}
+			if (!active) return;
+
 			setArticlesLoading(true);
-			console.log("[HomePage] Loading articles...");
 			try {
-				const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-				console.log("[HomePage] Articles load - Session check:", { hasSession: !!session, error: sessionError });
+				// Add timeout to session check
+				const sessionPromise = supabase.auth.getSession();
+				const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Auth check timed out")), 5000));
+
+				try {
+					await Promise.race([sessionPromise, timeoutPromise]);
+				} catch (e) {
+					console.warn("[HomePage] Auth check timed out or failed, proceeding with public access", e);
+				}
 
 				const { articles: arts, error } = await getPublishedArticles({ limit: 4 });
+
 				if (!active) return;
+
 				if (error) {
 					console.error("[HomePage] Error loading articles:", error);
-
 					// If auth error, try to refresh session and retry
 					if (typeof error === 'string' && (error.includes('JWT') || error.includes('token'))) {
-						console.log('[HomePage] Auth error detected, refreshing session...');
 						const { error: refreshError } = await supabase.auth.refreshSession();
 						if (!refreshError && active) {
-							// Retry after refresh
 							const { articles: retryArts, error: retryError } = await getPublishedArticles({ limit: 4 });
 							if (!retryError && active) {
-								console.log("[HomePage] Loaded articles after refresh:", retryArts?.length);
 								setArticles(retryArts || []);
-								setArticlesLoading(false);
-								return;
+								return; // Success after retry
 							}
 						}
 					}
-
 					setArticles([]);
 				} else {
-					console.log("[HomePage] Loaded articles:", arts?.length);
 					setArticles(arts || []);
 				}
 			} catch (err) {
@@ -102,7 +101,6 @@ export default function HomePage() {
 
 			try {
 				// Try to get top doctors by appointment count first
-				// If this fails (e.g., RLS blocking), fall back to just getting doctors
 				let topDoctorIds: string[] = [];
 
 				try {
@@ -113,10 +111,7 @@ export default function HomePage() {
 						.not("doctor_id", "is", null)
 						.limit(1000);
 
-					if (!active) return;
-
-					if (!topDoctorsError && topDoctorsData) {
-						// Count appointments per doctor
+					if (active && !topDoctorsError && topDoctorsData) {
 						const doctorCounts: Record<string, number> = {};
 						topDoctorsData.forEach((apt) => {
 							if (apt.doctor_id) {
@@ -124,7 +119,6 @@ export default function HomePage() {
 							}
 						});
 
-						// Get top 4 doctor IDs by appointment count
 						if (Object.keys(doctorCounts).length > 0) {
 							topDoctorIds = Object.entries(doctorCounts)
 								.sort(([, a], [, b]) => b - a)
@@ -136,7 +130,7 @@ export default function HomePage() {
 					console.warn("Could not load appointments for top doctors, using fallback:", err);
 				}
 
-				// Fallback: get first 4 doctors alphabetically if no appointment data
+				// Fallback: get first 4 doctors alphabetically
 				if (topDoctorIds.length === 0) {
 					const { data: allDoctors, error: fallbackError } = await supabase
 						.from("profiles")
@@ -146,68 +140,45 @@ export default function HomePage() {
 						.order("full_name", { ascending: true })
 						.limit(4);
 
-					if (fallbackError) {
-						console.error("Error loading doctors (fallback):", fallbackError);
-						if (active) setDoctorsLoading(false);
-						return;
-					}
-
+					if (fallbackError) throw fallbackError;
 					topDoctorIds = (allDoctors || []).map((d) => d.id);
 				}
 
 				if (topDoctorIds.length === 0) {
-					console.warn("No doctors found");
-					if (active) {
-						setTopDoctors([]);
-						setDoctorsLoading(false);
-					}
+					if (active) setTopDoctors([]);
 					return;
 				}
 
 				if (!active) return;
 
-				// Fetch doctor profiles in a single query
-				console.log("[HomePage] Fetching doctor profiles for IDs:", topDoctorIds);
 				const { data: doctors, error: docError } = await supabase
 					.from("profiles")
 					.select("id, full_name, speciality, doctor_slug")
 					.eq("role", "doctor")
 					.in("id", topDoctorIds);
 
-				if (docError) console.error("[HomePage] Error fetching profiles:", docError);
-				else console.log("[HomePage] Fetched profiles:", doctors?.length);
+				if (docError) throw docError;
 
-				if (!active) return;
-
-				if (docError) {
-					console.error("Error loading doctor profiles:", docError);
-					if (active) {
-						setTopDoctors([]);
-						setDoctorsLoading(false);
-					}
-					return;
+				if (active) {
+					const doctorMap = new Map(doctors?.map(d => [d.id, d]) || []);
+					const mapped = topDoctorIds
+						.map((id) => {
+							const doc = doctorMap.get(id);
+							if (!doc) return null;
+							const name = doc.full_name || doc.doctor_slug || "Doctor";
+							return {
+								name,
+								specialty: doc.speciality || "General Practitioner",
+								rating: 4.5,
+								distanceLabel: "Available",
+								avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=2563eb&color=fff&size=128`,
+								doctorId: doc.id,
+								doctorSlug: doc.doctor_slug,
+							};
+						})
+						.filter((d): d is TopDoctor => d !== null);
+					setTopDoctors(mapped);
 				}
-
-				// Map to DoctorCard format with defaults, preserving order
-				const doctorMap = new Map(doctors?.map(d => [d.id, d]) || []);
-				const mapped = topDoctorIds
-					.map((id) => {
-						const doc = doctorMap.get(id);
-						if (!doc) return null;
-						const name = doc.full_name || doc.doctor_slug || "Doctor";
-						return {
-							name,
-							specialty: doc.speciality || "General Practitioner",
-							rating: 4.5, // Default rating
-							distanceLabel: "Available", // Default
-							avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=2563eb&color=fff&size=128`,
-							doctorId: doc.id,
-							doctorSlug: doc.doctor_slug,
-						};
-					})
-					.filter((d): d is TopDoctor => d !== null);
-
-				if (active) setTopDoctors(mapped);
 			} catch (err) {
 				console.error("Exception loading top doctors:", err);
 				if (active) {
