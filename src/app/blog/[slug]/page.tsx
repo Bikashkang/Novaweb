@@ -142,12 +142,12 @@ export default function ArticleDetailPage() {
 
         {/* Featured Image */}
         {article.featured_image_url && (
-          <div className="mb-8 aspect-video w-full overflow-hidden rounded-lg">
+          <div className="mb-8 w-full overflow-hidden rounded-lg bg-slate-50">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={article.featured_image_url}
               alt={article.title}
-              className="h-full w-full object-cover"
+              className="mx-auto max-h-[480px] w-full object-contain"
             />
           </div>
         )}

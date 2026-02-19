@@ -22,11 +22,11 @@ export function ArticleCard({ article }: ArticleCardProps) {
       className="block rounded-lg border bg-white shadow-sm hover:shadow-md transition-shadow"
     >
       {article.featured_image_url && (
-        <div className="aspect-video w-full overflow-hidden rounded-t-lg">
+        <div className="aspect-video w-full overflow-hidden rounded-t-lg bg-slate-50">
           <img
             src={article.featured_image_url}
             alt={article.title}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-contain"
           />
         </div>
       )}
