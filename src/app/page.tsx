@@ -1,8 +1,7 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { IconAmbulance, IconHospital, IconInsurance, IconPill, IconStethoscope } from "@/components/icons";
 import { DoctorCard } from "@/components/doctor-card";
 import { ArticleCard } from "@/components/blog/article-card";
@@ -31,183 +30,128 @@ type TopDoctor = {
 	doctorSlug: string | null;
 };
 
-export default function HomePage() {
-	const router = useRouter();
+// ---------------------------------------------------------------------------
+// Standalone fetch functions — defined outside the component so React Query
+// can cache them across navigations (the QueryClient lives in AppProviders).
+// ---------------------------------------------------------------------------
+
+async function fetchArticles(): Promise<BlogArticleWithAuthor[]> {
+	const { articles, error } = await getPublishedArticles({ limit: 4 });
+	if (error) throw new Error(error);
+	return articles || [];
+}
+
+async function fetchTopDoctors(): Promise<TopDoctor[]> {
 	const supabase = getSupabaseBrowserClient();
-	const { user, loading: authLoading } = useAuth();
+	let topDoctorIds: string[] = [];
 
-	const [articles, setArticles] = useState<BlogArticleWithAuthor[]>([]);
-	const [articlesLoading, setArticlesLoading] = useState(true);
-	const [topDoctors, setTopDoctors] = useState<TopDoctor[]>([]);
-	const [doctorsLoading, setDoctorsLoading] = useState(true);
-	const [topDoctorsErrorDetails, setTopDoctorsErrorDetails] = useState<any>(null);
-	// Prevent duplicate fetches: only load data once per mount when auth resolves
-	const dataLoadedRef = useRef(false);
+	// Try to rank doctors by accepted appointment count
+	try {
+		const { data: topDoctorsData, error: topDoctorsError } = await reliableQuery<{ doctor_id: string }[]>(
+			(client) =>
+				client
+					.from("appointments")
+					.select("doctor_id")
+					.eq("status", "accepted")
+					.not("doctor_id", "is", null)
+					.limit(1000) as any,
+			{ timeout: 15000 }
+		);
 
-	useEffect(() => {
-		// Only run once when authLoading transitions to false
-		if (authLoading || dataLoadedRef.current) return;
-		dataLoadedRef.current = true;
-
-		console.log("[HomePage] Auth resolved, loading data...");
-		let active = true;
-
-		loadArticles();
-		loadTopDoctors();
-
-		async function loadArticles() {
-			console.log("[HomePage] loadArticles: START");
-			if (!active) {
-				console.log("[HomePage] loadArticles: SKIPPED (not active)");
-				return;
-			}
-
-			setArticlesLoading(true);
-			try {
-				console.log("[HomePage] loadArticles: Calling getPublishedArticles (via reliableQuery)...");
-				// Provide a timeout for the query
-				const { articles: arts, error } = await getPublishedArticles({ limit: 4 });
-				console.log("[HomePage] loadArticles: getPublishedArticles DONE. Articles count:", arts?.length, "Error:", error);
-
-				if (!active) {
-					console.log("[HomePage] loadArticles: SKIPPED completion (not active)");
-					return;
-				}
-
-				if (error) {
-					console.error("[HomePage] Error loading articles:", error);
-					setArticles([]);
-				} else {
-					setArticles(arts || []);
-				}
-			} catch (err) {
-				console.error("[HomePage] Exception loading articles:", err);
-				setArticles([]);
-			} finally {
-				if (active) {
-					console.log("[HomePage] loadArticles: FINISHED (setting loading=false)");
-					setArticlesLoading(false);
-				}
+		if (!topDoctorsError && topDoctorsData) {
+			const doctorCounts: Record<string, number> = {};
+			topDoctorsData.forEach((apt) => {
+				if (apt.doctor_id) doctorCounts[apt.doctor_id] = (doctorCounts[apt.doctor_id] || 0) + 1;
+			});
+			if (Object.keys(doctorCounts).length > 0) {
+				topDoctorIds = Object.entries(doctorCounts)
+					.sort(([, a], [, b]) => b - a)
+					.slice(0, 4)
+					.map(([id]) => id);
 			}
 		}
+	} catch (err) {
+		console.warn("[HomePage] Could not rank doctors by appointments, using fallback:", err);
+	}
 
-		async function loadTopDoctors() {
-			console.log("[HomePage] loadTopDoctors: START");
-			if (!active) {
-				console.log("[HomePage] loadTopDoctors: SKIPPED (not active)");
-				return;
-			}
-			setDoctorsLoading(true);
-			setTopDoctorsErrorDetails(null);
+	// Fallback: first 4 doctors alphabetically
+	if (topDoctorIds.length === 0) {
+		const { data: allDoctors, error: fallbackError } = await supabase
+			.from("profiles")
+			.select("id")
+			.eq("role", "doctor")
+			.not("doctor_slug", "is", null)
+			.order("full_name", { ascending: true })
+			.limit(4);
 
-			try {
-				console.log("[HomePage] loadTopDoctors: Fetching top doctor IDs...");
-				// Try to get top doctors by appointment count first
-				let topDoctorIds: string[] = [];
+		if (fallbackError) throw fallbackError;
+		topDoctorIds = (allDoctors || []).map((d) => d.id);
+	}
 
-				try {
-					console.log("[HomePage] loadTopDoctors: Querying appointments...");
-					const { data: topDoctorsData, error: topDoctorsError } = await reliableQuery<{ doctor_id: string }[]>(
-						(client) => client
-							.from("appointments")
-							.select("doctor_id")
-							.eq("status", "accepted")
-							.not("doctor_id", "is", null)
-							.limit(1000) as any,
-						{ timeout: 15000 } // 15 second timeout for this count query
-					);
+	if (topDoctorIds.length === 0) return [];
 
-					if (active && !topDoctorsError && topDoctorsData) {
-						const doctorCounts: Record<string, number> = {};
-						topDoctorsData.forEach((apt) => {
-							if (apt.doctor_id) {
-								doctorCounts[apt.doctor_id] = (doctorCounts[apt.doctor_id] || 0) + 1;
-							}
-						});
+	const { data: doctors, error: docError } = await reliableQuery<any[]>(
+		(client) =>
+			client
+				.from("profiles")
+				.select("id, full_name, speciality, doctor_slug")
+				.eq("role", "doctor")
+				.in("id", topDoctorIds) as any,
+		{ timeout: 10000 }
+	);
 
-						if (Object.keys(doctorCounts).length > 0) {
-							topDoctorIds = Object.entries(doctorCounts)
-								.sort(([, a], [, b]) => b - a)
-								.slice(0, 4)
-								.map(([id]) => id);
-						}
-					}
-				} catch (err) {
-					console.warn("Could not load appointments for top doctors, using fallback:", err);
-				}
+	if (docError) throw docError;
 
-				// Fallback: get first 4 doctors alphabetically
-				if (topDoctorIds.length === 0) {
-					const { data: allDoctors, error: fallbackError } = await supabase
-						.from("profiles")
-						.select("id")
-						.eq("role", "doctor")
-						.not("doctor_slug", "is", null)
-						.order("full_name", { ascending: true })
-						.limit(4);
+	const doctorMap = new Map(doctors?.map((d) => [d.id, d]) || []);
+	return topDoctorIds
+		.map((id) => {
+			const doc = doctorMap.get(id);
+			if (!doc) return null;
+			const name = doc.full_name || doc.doctor_slug || "Doctor";
+			return {
+				name,
+				specialty: doc.speciality || "General Practitioner",
+				rating: 4.5,
+				distanceLabel: "Available",
+				avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=2563eb&color=fff&size=128`,
+				doctorId: doc.id,
+				doctorSlug: doc.doctor_slug,
+			};
+		})
+		.filter((d): d is TopDoctor => d !== null);
+}
 
-					if (fallbackError) throw fallbackError;
-					topDoctorIds = (allDoctors || []).map((d) => d.id);
-				}
+// ---------------------------------------------------------------------------
+// Page component
+// ---------------------------------------------------------------------------
 
-				if (topDoctorIds.length === 0) {
-					if (active) setTopDoctors([]);
-					return;
-				}
+export default function HomePage() {
+	const { loading: authLoading } = useAuth();
 
-				if (!active) return;
+	// React Query caches results in the QueryClient (mounted at app level).
+	// Navigating away and back instantly shows the cached data while a
+	// background refetch runs — no more empty spinners on re-visits.
+	const {
+		data: articles = [],
+		isLoading: articlesLoading,
+	} = useQuery({
+		queryKey: ["homepage-articles"],
+		queryFn: fetchArticles,
+		enabled: !authLoading,          // wait for auth to resolve first
+		staleTime: 5 * 60 * 1000,      // treat data as fresh for 5 min
+		gcTime: 10 * 60 * 1000,        // keep in cache for 10 min
+	});
 
-				console.log("[HomePage] loadTopDoctors: Fetching profiles for top doctor IDs:", topDoctorIds);
-				const { data: doctors, error: docError } = await reliableQuery<any[]>(
-					(client) => client
-						.from("profiles")
-						.select("id, full_name, speciality, doctor_slug")
-						.eq("role", "doctor")
-						.in("id", topDoctorIds) as any,
-					{ timeout: 10000 }
-				);
-
-				if (docError) throw docError;
-
-				if (active) {
-					const doctorMap = new Map(doctors?.map(d => [d.id, d]) || []);
-					const mapped = topDoctorIds
-						.map((id) => {
-							const doc = doctorMap.get(id);
-							if (!doc) return null;
-							const name = doc.full_name || doc.doctor_slug || "Doctor";
-							return {
-								name,
-								specialty: doc.speciality || "General Practitioner",
-								rating: 4.5,
-								distanceLabel: "Available",
-								avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=2563eb&color=fff&size=128`,
-								doctorId: doc.id,
-								doctorSlug: doc.doctor_slug,
-							};
-						})
-						.filter((d): d is TopDoctor => d !== null);
-					console.log("[HomePage] loadTopDoctors: FINISHED. Count:", mapped.length);
-					setTopDoctors(mapped);
-				}
-			} catch (err) {
-				console.error("Exception loading top doctors:", err);
-				if (active) {
-					setTopDoctorsErrorDetails(err);
-					setTopDoctors([]);
-				}
-			} finally {
-				if (active) {
-					console.log("[HomePage] loadTopDoctors: DONE (setting loading=false)");
-					setDoctorsLoading(false);
-				}
-			}
-		}
-
-		return () => {
-			active = false;
-		};
-	}, [authLoading]);
+	const {
+		data: topDoctors = [],
+		isLoading: doctorsLoading,
+	} = useQuery({
+		queryKey: ["homepage-top-doctors"],
+		queryFn: fetchTopDoctors,
+		enabled: !authLoading,
+		staleTime: 5 * 60 * 1000,
+		gcTime: 10 * 60 * 1000,
+	});
 
 	return (
 		<main className="min-h-screen bg-slate-50">
@@ -261,7 +205,6 @@ export default function HomePage() {
 				) : topDoctors.length === 0 ? (
 					<div className="mt-3 h-28 md:h-36 rounded-2xl bg-white ring-1 ring-slate-100 flex items-center justify-center flex-col gap-2">
 						<p className="text-sm text-slate-500">No doctors available yet</p>
-						{!!topDoctorsErrorDetails && <p className="text-xs text-red-500 px-4 text-center">{String(topDoctorsErrorDetails)}</p>}
 					</div>
 				) : (
 					<>
@@ -321,5 +264,3 @@ export default function HomePage() {
 		</main>
 	);
 }
-
-
