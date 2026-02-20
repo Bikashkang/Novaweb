@@ -252,7 +252,7 @@ export function Navbar() {
           <MobileLink href="/doctors" label="Find Doctors" active={isActive("/doctors")} />
           <MobileLink href="/diagnostics" label="Diagnostics" active={isActive("/diagnostics")} />
           <MobileLink href="/blog" label="Blog" active={isActive("/blog")} />
-          <MobileLink href="/about" label="About Us" active={isActive("/about")} />
+          <MobileLink href="/about" label="About" active={isActive("/about")} />
 
           {identifier ? (
             <>
