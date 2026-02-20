@@ -85,6 +85,9 @@ export function Navbar() {
       <Link href="/blog" className={linkClass("/blog")} onClick={() => setMenuOpen(false)}>
         Blogs
       </Link>
+      <Link href="/about" className={linkClass("/about")} onClick={() => setMenuOpen(false)}>
+        About
+      </Link>
     </>
   );
 
@@ -249,6 +252,7 @@ export function Navbar() {
           <MobileLink href="/doctors" label="Find Doctors" active={isActive("/doctors")} />
           <MobileLink href="/diagnostics" label="Diagnostics" active={isActive("/diagnostics")} />
           <MobileLink href="/blog" label="Blog" active={isActive("/blog")} />
+          <MobileLink href="/about" label="About Us" active={isActive("/about")} />
 
           {identifier ? (
             <>
