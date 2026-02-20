@@ -137,7 +137,7 @@ export function NotificationBell() {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [userId, supabase]);
+    }, [userId, supabase, authLoading]);
 
     // Close on outside click
     useEffect(() => {

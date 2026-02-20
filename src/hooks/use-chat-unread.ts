@@ -73,7 +73,7 @@ export function useChatUnread() {
             .subscribe();
 
         return () => { supabase.removeChannel(channel); };
-    }, [userId, supabase, fetchUnreadSimple]);
+    }, [userId, supabase, fetchUnreadSimple, authLoading]);
 
     // Clear badge when user navigates to /chat (mark all as read)
     const clearUnread = useCallback(() => {

@@ -100,7 +100,7 @@ export default function AboutPage() {
                             </div>
                             <p className="text-slate-700 leading-relaxed">
                                 <strong className="text-slate-900">HDL</strong> in medicine stands for{" "}
-                                <em>High-Density Lipoprotein</em> — the "good cholesterol" that
+                                <em>High-Density Lipoprotein</em> — the &ldquo;good cholesterol&rdquo; that
                                 protects and strengthens the human heart. NOVAHDL reinterprets
                                 this as <strong className="text-blue-700">Healthy Digital Life</strong>:
                                 a system built to protect and strengthen the healthcare
@@ -120,7 +120,7 @@ export default function AboutPage() {
                             </div>
                             <p className="text-slate-700 leading-relaxed">
                                 <strong className="text-slate-900">Nova</strong> derives from the
-                                Latin <em>novus</em> — "new." In astronomy, a nova is a sudden
+                                Latin <em>novus</em> — &ldquo;new.&rdquo; In astronomy, a nova is a sudden
                                 burst of light; a powerful ignition.{" "}
                                 <strong className="text-indigo-700">NOVAHDL represents that ignition</strong>{" "}
                                 in healthcare: a new, technology-driven ecosystem that lights

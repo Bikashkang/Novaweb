@@ -23,6 +23,7 @@ export function ArticleCard({ article }: ArticleCardProps) {
     >
       {article.featured_image_url && (
         <div className="aspect-video w-full overflow-hidden rounded-t-lg bg-slate-50">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={article.featured_image_url}
             alt={article.title}
