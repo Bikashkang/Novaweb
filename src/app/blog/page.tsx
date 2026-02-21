@@ -1,50 +1,40 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { getPublishedArticles, getCategories } from "@/lib/blog/articles";
 import type { BlogArticleWithAuthor } from "@/lib/blog/articles";
 import { ArticleCard } from "@/components/blog/article-card";
+import { useQuery } from "@tanstack/react-query";
 
 export default function BlogPage() {
-  const [articles, setArticles] = useState<BlogArticleWithAuthor[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
+  const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
+    queryKey: ["blog_categories"],
+    queryFn: async () => {
+      const { categories, error } = await getCategories();
+      if (error) throw new Error(error);
+      return categories || [];
+    },
+    staleTime: 10 * 60 * 1000,
+  });
 
-    async function load() {
-      setLoading(true);
-      setError(null);
-
-      // Load categories
-      const { categories: cats, error: catsError } = await getCategories();
-      if (!active) return;
-      if (!catsError) {
-        setCategories(cats);
-      }
-
-      // Load articles
-      const { articles: arts, error: artsError } = await getPublishedArticles({
+  const { data: articlesData, isLoading: articlesLoading, error: articlesError } = useQuery({
+    queryKey: ["blog_articles", selectedCategory],
+    queryFn: async () => {
+      const { articles, error } = await getPublishedArticles({
         category: selectedCategory || undefined,
         limit: 50,
       });
+      if (error) throw new Error(error);
+      return articles || [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-      if (!active) return;
-      if (artsError) {
-        setError(artsError);
-      } else {
-        setArticles(arts);
-      }
-      setLoading(false);
-    }
-
-    load();
-    return () => {
-      active = false;
-    };
-  }, [selectedCategory]);
+  const categories = categoriesData || [];
+  const articles = articlesData || [];
+  const loading = categoriesLoading || articlesLoading;
+  const error = articlesError ? articlesError.message : null;
 
   return (
     <main className="container mx-auto px-4 py-8">
@@ -62,11 +52,10 @@ export default function BlogPage() {
           <div className="mb-6 flex flex-wrap gap-2">
             <button
               onClick={() => setSelectedCategory(null)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                selectedCategory === null
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedCategory === null
                   ? "bg-blue-600 text-white"
                   : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
+                }`}
             >
               All
             </button>
@@ -74,11 +63,10 @@ export default function BlogPage() {
               <button
                 key={category}
                 onClick={() => setSelectedCategory(category)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  selectedCategory === category
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedCategory === category
                     ? "bg-blue-600 text-white"
                     : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                }`}
+                  }`}
               >
                 {category}
               </button>

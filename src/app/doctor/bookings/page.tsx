@@ -1,4 +1,3 @@
-"use client";
 import { useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -9,6 +8,8 @@ import { createPrescription } from "@/lib/prescriptions/prescriptions";
 import type { PrescriptionFormData } from "@/lib/prescriptions/prescriptions";
 import { PaymentStatusBadge } from "@/components/payment/payment-status";
 import { sendPrescriptionCreatedNotification } from "@/lib/notifications/notifications";
+import { useAuth } from "@/components/auth-provider";
+import { useQuery } from "@tanstack/react-query";
 
 type Row = {
   id: number;
@@ -31,127 +32,110 @@ type Patient = {
 export default function DoctorBookingsPage() {
   const supabase = getSupabaseBrowserClient();
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+  const userId = user?.id;
+
   const [rows, setRows] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [doctorSlug, setDoctorSlug] = useState<string | null>(null);
   const [patientById, setPatientById] = useState<Record<string, Patient>>({});
+
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Row | null>(null);
   const [creatingPrescription, setCreatingPrescription] = useState(false);
 
-  useEffect(() => {
-    let active = true;
-    let subscription: { unsubscribe: () => void } | null = null;
-
-    async function loadForDoctor() {
-      setLoading(true);
-      setError(null);
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
-      if (!userId) {
-        setError("Not signed in");
-        setLoading(false);
-        return;
-      }
-      // keep slug for display, but fetch by doctor_id to avoid recursion
+  const { data: fetchedData, isLoading: queryLoading, error: queryError, refetch } = useQuery({
+    queryKey: ["appointments", "doctor", userId],
+    enabled: !!userId,
+    queryFn: async () => {
       const { data: prof } = await supabase
         .from("profiles")
         .select("doctor_slug")
         .eq("id", userId)
         .single();
       const slug = prof?.doctor_slug ?? null;
-      setDoctorSlug(slug);
 
       const { data, error } = await supabase
         .from("appointments")
         .select("id, patient_id, doctor_identifier, appt_date, appt_time, appt_type, status, payment_status, payment_amount")
         .eq("doctor_id", userId)
         .order("created_at", { ascending: false });
-      if (!active) return;
-      if (error) setError(error.message);
+
+      if (error) throw new Error(error.message);
       const appts = (data as Row[]) ?? [];
-      setRows(appts);
 
       const ids = Array.from(new Set(appts.map((a) => a.patient_id)));
+      const patientMap: Record<string, Patient> = {};
+
       if (ids.length > 0) {
-        const { data: pats, error: pErr } = await supabase
+        const { data: pats } = await supabase
           .from("profiles")
           .select("id, full_name, phone")
           .in("id", ids);
-        if (!active) return;
-        if (!pErr && pats) {
-          const map: Record<string, Patient> = {};
-          for (const p of pats as Patient[]) map[p.id] = p;
-          setPatientById(map);
-        }
-      } else {
-        setPatientById({});
-      }
-      setLoading(false);
 
-      // Subscribe to new appointments and updates
-      subscription = supabase
-        .channel("appointments:doctor")
-        .on(
-          "postgres_changes",
-          {
-            event: "INSERT",
-            schema: "public",
-            table: "appointments",
-            filter: `doctor_id=eq.${userId}`,
-          },
-          async (payload: any) => {
-            const newAppt = payload.new as Row & { id: number };
-            if (active) {
-              // Reload appointments to get full data and refresh patient list
-              const { data: reloadData } = await supabase
-                .from("appointments")
-                .select("id, patient_id, doctor_identifier, appt_date, appt_time, appt_type, status, payment_status, payment_amount")
-                .eq("doctor_id", userId)
-                .order("created_at", { ascending: false });
-              if (reloadData) {
-                setRows(reloadData as Row[]);
-                // Update patient list
-                const newIds = Array.from(new Set(reloadData.map((a: Row) => a.patient_id)));
-                if (newIds.length > 0) {
-                  const { data: pats } = await supabase
-                    .from("profiles")
-                    .select("id, full_name, phone")
-                    .in("id", newIds);
-                  if (pats) {
-                    const map: Record<string, Patient> = {};
-                    for (const p of pats as Patient[]) map[p.id] = p;
-                    setPatientById(map);
-                  }
-                }
-              }
-            }
-          }
-        )
-        .on(
-          "postgres_changes",
-          {
-            event: "UPDATE",
-            schema: "public",
-            table: "appointments",
-            filter: `doctor_id=eq.${userId}`,
-          },
-          (payload: any) => {
-            const updatedAppt = payload.new as Row & { id: number };
-            if (active) {
-              setRows((prev) => prev.map((r) => (r.id === updatedAppt.id ? { ...r, ...updatedAppt } : r)));
-            }
-          }
-        )
-        .subscribe();
+        if (pats) {
+          for (const p of pats as Patient[]) patientMap[p.id] = p;
+        }
+      }
+
+      return { appts, patientMap, slug };
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (fetchedData) {
+      setRows(fetchedData.appts);
+      setPatientById(fetchedData.patientMap);
+      setDoctorSlug(fetchedData.slug);
     }
-    loadForDoctor();
+  }, [fetchedData]);
+
+  useEffect(() => {
+    let active = true;
+    if (!userId) return;
+
+    const subscription = supabase
+      .channel("appointments:doctor")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "appointments",
+          filter: `doctor_id=eq.${userId}`,
+        },
+        async () => {
+          if (active) {
+            // Simply refetch the query to get all updated data including patients
+            refetch();
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "appointments",
+          filter: `doctor_id=eq.${userId}`,
+        },
+        (payload: any) => {
+          const updatedAppt = payload.new as Row & { id: number };
+          if (active) {
+            setRows((prev) => prev.map((r) => (r.id === updatedAppt.id ? { ...r, ...updatedAppt } : r)));
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
       active = false;
-      if (subscription) subscription.unsubscribe();
+      subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [supabase, userId, refetch]);
+
+  const loading = authLoading || (queryLoading && !fetchedData);
+  const error = queryError?.message || (!userId && !authLoading ? "Not signed in" : null);
 
   async function updateStatus(id: number, status: "accepted" | "declined") {
     const { error } = await supabase
@@ -279,8 +263,8 @@ export default function DoctorBookingsPage() {
                     {r.appt_type === "video" && r.status === "accepted" && (
                       <button
                         className={`text-sm text-left font-medium ${isAppointmentTime(r.appt_date, r.appt_time)
-                            ? "text-green-600 hover:underline"
-                            : "text-slate-400 cursor-not-allowed"
+                          ? "text-green-600 hover:underline"
+                          : "text-slate-400 cursor-not-allowed"
                           }`}
                         onClick={() => {
                           if (isAppointmentTime(r.appt_date, r.appt_time)) {

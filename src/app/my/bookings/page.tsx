@@ -6,6 +6,8 @@ import { findOrCreateConversation } from "@/lib/chat/conversations";
 import { isAppointmentTime } from "@/lib/video-calls/calls";
 import { PaymentStatusBadge } from "@/components/payment/payment-status";
 import Link from "next/link";
+import { useAuth } from "@/components/auth-provider";
+import { useQuery } from "@tanstack/react-query";
 
 type Row = {
   id: number;
@@ -23,103 +25,60 @@ type Row = {
 export default function MyBookingsPage() {
   const supabase = getSupabaseBrowserClient();
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+  const userId = user?.id;
+
   const [rows, setRows] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    let realtimeSubscription: { unsubscribe: () => void } | null = null;
-    let authSubscription: { unsubscribe: () => void } | null = null;
-    let loadTimeout: ReturnType<typeof setTimeout> | null = null;
-
-    async function load() {
-      if (!active) return;
-      setLoading(true);
-      setError(null);
-      console.log("[BookingsPage] Loading bookings...");
-
-      // Safety timeout - never stay stuck loading forever
-      if (loadTimeout) clearTimeout(loadTimeout);
-      loadTimeout = setTimeout(() => {
-        if (active) {
-          console.warn("[BookingsPage] Load timed out after 10s");
-          setLoading(false);
-          setError("Loading timed out. Please refresh the page.");
-        }
-      }, 10000);
-
-      // Use getSession() - reads from local cookie storage, no network round-trip
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      console.log("[BookingsPage] Session check:", { userId: sessionData.session?.user?.id, error: sessionError });
-
-      const userId = sessionData.session?.user?.id;
-      if (!userId) {
-        console.warn("[BookingsPage] No session found");
-        if (active) {
-          if (loadTimeout) clearTimeout(loadTimeout);
-          setError("Not signed in");
-          setLoading(false);
-        }
-        return;
-      }
-
-      console.log("[BookingsPage] Fetching appointments for user:", userId);
+  const { data: fetchedRows, isLoading: queryLoading, error: queryError } = useQuery({
+    queryKey: ["appointments", "patient", userId],
+    enabled: !!userId,
+    queryFn: async () => {
       const { data, error } = await supabase
         .from("appointments")
         .select("id, doctor_id, doctor_identifier, appt_date, appt_time, appt_type, status, payment_status, payment_amount, created_at")
         .eq("patient_id", userId)
         .order("created_at", { ascending: false });
 
-      if (error) console.error("[BookingsPage] Error fetching appointments:", error);
-      else console.log("[BookingsPage] Fetched appointments:", data?.length);
+      if (error) throw new Error(error.message);
+      return (data as Row[]) ?? [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-      if (!active) return;
-      if (loadTimeout) clearTimeout(loadTimeout);
-      if (error) setError(error.message);
-      setRows((data as Row[]) ?? []);
-      setLoading(false);
-
-      // realtime status updates for this patient
-      if (realtimeSubscription) realtimeSubscription.unsubscribe();
-
-      realtimeSubscription = supabase
-        .channel("appointments:patient")
-        .on(
-          "postgres_changes",
-          {
-            event: "UPDATE",
-            schema: "public",
-            table: "appointments",
-            filter: `patient_id=eq.${userId}`
-          },
-          (payload: any) => {
-            const newRow = payload.new as Row & { id: number };
-            setRows((prev) => prev.map((r) => (r.id === newRow.id ? { ...r, ...newRow } : r)));
-          }
-        )
-        .subscribe();
+  useEffect(() => {
+    if (fetchedRows) {
+      setRows(fetchedRows);
     }
+  }, [fetchedRows]);
 
-    // Set up auth listener - only reload on sign-in/out, not token refresh
-    const { data } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!active) return;
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-        load();
-      }
-    });
-    authSubscription = data.subscription;
+  useEffect(() => {
+    if (!userId) return;
 
-    // Initial load
-    load();
+    const realtimeSubscription = supabase
+      .channel("appointments:patient")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "appointments",
+          filter: `patient_id=eq.${userId}`
+        },
+        (payload: any) => {
+          const newRow = payload.new as Row & { id: number };
+          setRows((prev) => prev.map((r) => (r.id === newRow.id ? { ...r, ...newRow } : r)));
+        }
+      )
+      .subscribe();
 
     return () => {
-      active = false;
-      if (loadTimeout) clearTimeout(loadTimeout);
-      if (realtimeSubscription) realtimeSubscription.unsubscribe();
-      if (authSubscription) authSubscription.unsubscribe();
+      realtimeSubscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [supabase, userId]);
+
+  const loading = authLoading || (queryLoading && !fetchedRows);
+  const error = queryError?.message || (!userId && !authLoading ? "Not signed in" : null);
 
   if (loading) {
     return (
